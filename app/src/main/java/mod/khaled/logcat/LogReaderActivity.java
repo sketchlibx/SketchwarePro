@@ -28,7 +28,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -80,11 +79,13 @@ public class LogReaderActivity extends BaseAppCompatActivity {
             int id = item.getItemId();
             if (id == R.id.action_clear) {
                 mainList.clear();
-                ((Adapter) binding.logsRecyclerView.getAdapter()).deleteAll();
+                if (binding.logsRecyclerView.getAdapter() != null) {
+                    ((Adapter) binding.logsRecyclerView.getAdapter()).deleteAll();
+                }
             } else if (id == R.id.action_auto_scroll) {
                 autoScroll = !item.isChecked();
                 item.setChecked(autoScroll);
-                if (autoScroll) {
+                if (autoScroll && binding.logsRecyclerView.getAdapter() != null) {
                     binding.logsRecyclerView.getLayoutManager().scrollToPosition(binding.logsRecyclerView.getAdapter().getItemCount() - 1);
                 }
             } else if (id == R.id.action_filter) {
@@ -105,12 +106,12 @@ public class LogReaderActivity extends BaseAppCompatActivity {
                     ArrayList<HashMap<String, Object>> filteredList = new ArrayList<>();
                     for (HashMap<String, Object> m : mainList) {
                         if (!pkgFilterList.isEmpty()) {
-                            if (m.containsKey("pkgName") && pkgFilterList.contains(m.get("pkgName").toString())) {
-                                if (m.get("logRaw").toString().toLowerCase().contains(_charSeq.toLowerCase())) {
+                            if (m.containsKey("pkgName") && pkgFilterList.contains(safeGet(m, "pkgName"))) {
+                                if (safeGet(m, "logRaw").toLowerCase().contains(_charSeq.toLowerCase())) {
                                     filteredList.add(m);
                                 }
                             }
-                        } else if (m.get("logRaw").toString().toLowerCase().contains(_charSeq.toLowerCase())) {
+                        } else if (safeGet(m, "logRaw").toLowerCase().contains(_charSeq.toLowerCase())) {
                             filteredList.add(m);
                         }
                     }
@@ -169,7 +170,7 @@ public class LogReaderActivity extends BaseAppCompatActivity {
             contentBuilder.append(stars).append("\n");
             contentBuilder.append(stars).append("\n");
             contentBuilder.append("**").append(blank).append("**");
-            contentBuilder.append("\n**    Exported logcat reader for ").append(packageName).append(" on ").append(formattedDate).append("  **\n");
+            contentBuilder.append("\n** Exported logcat reader for ").append(packageName).append(" on ").append(formattedDate).append("  **\n");
             contentBuilder.append("**").append(blank).append("**\n");
             contentBuilder.append(stars).append("\n");
             contentBuilder.append(stars).append("\n");
@@ -209,7 +210,6 @@ public class LogReaderActivity extends BaseAppCompatActivity {
     }
 
     private class Logger extends BroadcastReceiver {
-
         @Override
         public void onReceive(Context context, Intent intent) {
             HashMap<String, Object> map = new HashMap<>();
@@ -218,15 +218,12 @@ public class LogReaderActivity extends BaseAppCompatActivity {
                     map.put("pkgName", intent.getStringExtra("packageName"));
                     packageName = intent.getStringExtra("packageName");
                 }
-                map.put("logRaw", intent.getStringExtra("log"));
-                if (intent.getStringExtra("log") == null) return;
+                String logRaw = intent.getStringExtra("log");
+                map.put("logRaw", logRaw);
+                if (logRaw == null) return;
 
-                Matcher matcher = logPattern.matcher(intent.getStringExtra("log"));
+                Matcher matcher = logPattern.matcher(logRaw);
                 if (matcher.matches()) {
-                    //group 1 = pid, time stuff & idk
-                    //group 2 = log type (a,d,e,i,w)
-                    //group 3 = log tag,headers
-                    //group 4 = everything else
                     map.put("date", matcher.group(1).trim());
                     map.put("type", matcher.group(2).trim());
                     map.put("header", matcher.group(3));
@@ -235,21 +232,25 @@ public class LogReaderActivity extends BaseAppCompatActivity {
                 }
 
                 mainList.add(map);
-                if (pkgFilterList.isEmpty()) {
-                    if (!Helper.getText(binding.searchInput).isEmpty()) {
-                        if (map.get("logRaw").toString().toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
-                            ((Adapter) binding.logsRecyclerView.getAdapter()).updateList(map);
+                if (binding.logsRecyclerView.getAdapter() != null) {
+                    Adapter adapter = (Adapter) binding.logsRecyclerView.getAdapter();
+                    
+                    if (pkgFilterList.isEmpty()) {
+                        if (!Helper.getText(binding.searchInput).isEmpty()) {
+                            if (logRaw.toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
+                                adapter.updateList(map);
+                            }
+                        } else {
+                            adapter.updateList(map);
                         }
-                    } else {
-                        ((Adapter) binding.logsRecyclerView.getAdapter()).updateList(map);
-                    }
-                } else if (map.containsKey("pkgName") && pkgFilterList.contains(map.get("pkgName").toString())) {
-                    if (!Helper.getText(binding.searchInput).isEmpty()) {
-                        if (map.get("logRaw").toString().toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
-                            ((Adapter) binding.logsRecyclerView.getAdapter()).updateList(map);
+                    } else if (map.containsKey("pkgName") && pkgFilterList.contains(safeGet(map, "pkgName"))) {
+                        if (!Helper.getText(binding.searchInput).isEmpty()) {
+                            if (logRaw.toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
+                                adapter.updateList(map);
+                            }
+                        } else {
+                            adapter.updateList(map);
                         }
-                    } else {
-                        ((Adapter) binding.logsRecyclerView.getAdapter()).updateList(map);
                     }
                 }
             }
@@ -261,11 +262,13 @@ public class LogReaderActivity extends BaseAppCompatActivity {
 
         public Adapter(ArrayList<HashMap<String, Object>> data) {
             this.data = data;
+            binding.noContentLayout.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
         }
 
         public void updateList(HashMap<String, Object> _map) {
             data.add(_map);
-            binding.logsRecyclerView.getAdapter().notifyItemInserted(data.size() + 1);
+            // CRITICAL BUG FIX: Corrected index from data.size() + 1 to data.size() - 1
+            binding.logsRecyclerView.getAdapter().notifyItemInserted(data.size() - 1);
 
             if (autoScroll) {
                 binding.logsRecyclerView.getLayoutManager().scrollToPosition(data.size() - 1);
@@ -276,8 +279,9 @@ public class LogReaderActivity extends BaseAppCompatActivity {
         }
 
         public void deleteAll() {
+            int size = data.size();
             data.clear();
-            binding.logsRecyclerView.getAdapter().notifyDataSetChanged();
+            notifyItemRangeRemoved(0, size);
             binding.noContentLayout.setVisibility(View.VISIBLE);
         }
 
@@ -292,64 +296,57 @@ public class LogReaderActivity extends BaseAppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            var binding = holder.listBinding;
+            var listBinding = holder.listBinding;
+            HashMap<String, Object> itemData = data.get(position);
 
-            if (data.get(position).containsKey("pkgName")) {
-                binding.pkgName.setText(data.get(position).get("pkgName").toString());
-                binding.pkgName.setVisibility(View.VISIBLE);
+            if (itemData.containsKey("pkgName")) {
+                listBinding.pkgName.setText(safeGet(itemData, "pkgName"));
+                listBinding.pkgName.setVisibility(View.VISIBLE);
             } else {
-                binding.pkgName.setVisibility(View.GONE);
+                listBinding.pkgName.setVisibility(View.GONE);
             }
-            if (data.get(position).containsKey("culturedLog")) {
-                binding.dateHeader.setVisibility(View.VISIBLE);
-                binding.type.setText(data.get(position).get("type").toString());
-                binding.dateHeader.setText(data.get(position).get("date").toString() + " | " + data.get(position).get("header").toString());
-                switch (Objects.requireNonNull(data.get(position).get("type")).toString()) {
-                    case "A" -> binding.type.setBackgroundColor(0xFF9C27B0);
-                    case "D" -> binding.type.setBackgroundColor(0xFF2196F3);
-                    case "E" -> binding.type.setBackgroundColor(0xFFF44336);
-                    case "I" -> binding.type.setBackgroundColor(0xFF4CAF50);
-                    case "V" -> binding.type.setBackgroundColor(0xFF000000);
-                    case "W" -> binding.type.setBackgroundColor(0xFFFFC107);
+            
+            if (itemData.containsKey("culturedLog")) {
+                listBinding.dateHeader.setVisibility(View.VISIBLE);
+                String typeStr = safeGet(itemData, "type");
+                listBinding.type.setText(typeStr);
+                listBinding.dateHeader.setText(safeGet(itemData, "date") + " | " + safeGet(itemData, "header"));
+                
+                switch (typeStr) {
+                    case "A" -> listBinding.type.setBackgroundColor(0xFF9C27B0);
+                    case "D" -> listBinding.type.setBackgroundColor(0xFF2196F3);
+                    case "E" -> listBinding.type.setBackgroundColor(0xFFF44336);
+                    case "I" -> listBinding.type.setBackgroundColor(0xFF4CAF50);
+                    case "V" -> listBinding.type.setBackgroundColor(0xFF000000);
+                    case "W" -> listBinding.type.setBackgroundColor(0xFFFFC107);
                     default -> {
-                        binding.type.setBackgroundColor(0xFF000000);
-                        binding.type.setText("U");
+                        listBinding.type.setBackgroundColor(0xFF000000);
+                        listBinding.type.setText("U");
                     }
                 }
-                binding.log.setText(data.get(position).get("body").toString());
+                listBinding.log.setText(safeGet(itemData, "body"));
+                
                 try {
-                    if (data.get(position).get("date").toString().equals(data.get(position + 1).get("date").toString())) {
-//                        binding.divider.setVisibility(View.GONE);
-                        try {
-                            if (data.get(position).get("pkgName").toString().equals(data.get(position + 1).get("pkgName").toString())) {
-                                binding.pkgName.setVisibility(View.GONE);
-                            } else {
-                                binding.pkgName.setVisibility(View.VISIBLE);
-                            }
-                        } catch (Exception ignored) {
-                            binding.pkgName.setVisibility(View.VISIBLE);
+                    if (position < data.size() - 1 && safeGet(itemData, "date").equals(safeGet(data.get(position + 1), "date"))) {
+                        if (safeGet(itemData, "pkgName").equals(safeGet(data.get(position + 1), "pkgName"))) {
+                            listBinding.pkgName.setVisibility(View.GONE);
                         }
-                        try {
-                            if (data.get(position).get("header").toString().equals(data.get(position + 1).get("header").toString())) {
-                                binding.dateHeader.setVisibility(View.GONE);
-                            } else {
-                                binding.dateHeader.setVisibility(View.VISIBLE);
-                            }
-                        } catch (Exception ignored) {
-                            binding.dateHeader.setVisibility(View.VISIBLE);
+                        if (safeGet(itemData, "header").equals(safeGet(data.get(position + 1), "header"))) {
+                            listBinding.dateHeader.setVisibility(View.GONE);
                         }
                     }
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) { }
+                
             } else {
-                binding.log.setText(data.get(position).get("logRaw").toString());
-                binding.type.setBackgroundColor(0xFF000000);
-                binding.type.setText("U");
-                binding.dateHeader.setVisibility(View.GONE);
+                listBinding.log.setText(safeGet(itemData, "logRaw"));
+                listBinding.type.setBackgroundColor(0xFF000000);
+                listBinding.type.setText("U");
+                listBinding.dateHeader.setVisibility(View.GONE);
             }
-            binding.getRoot().setOnLongClickListener(v -> {
+            
+            listBinding.getRoot().setOnLongClickListener(v -> {
                 SketchwareUtil.toast("Copied to clipboard");
-                ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("clipboard", data.get(position).get("logRaw").toString()));
+                ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("clipboard", safeGet(itemData, "logRaw")));
                 return true;
             });
         }
