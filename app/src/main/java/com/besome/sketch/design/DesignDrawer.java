@@ -106,14 +106,29 @@ public class DesignDrawer extends LinearLayout {
         ScrollView scrollView = new ScrollView(context);
         scrollView.setFillViewport(true);
         scrollView.setClipToPadding(false);
-        addView(scrollView, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1));
+        // BUG FIX 1: Explicitly defining LayoutParams to prevent Android's strict measurement collapse
+        addView(scrollView, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1.0f));
 
         LinearLayout content = new LinearLayout(getContext());
         content.setOrientation(VERTICAL);
-        scrollView.addView(content);
+        // BUG FIX 2: Added missing MATCH_PARENT to content so it expands correctly
+        scrollView.addView(content, new ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         UI.addSystemWindowInsetToPadding(scrollView, false, true, false, false);
-        UI.addSystemWindowInsetToPadding(this, false, false, true, true);
+        
+        // BUG FIX 3: Replaced UI inset with a safe custom listener that ignores Keyboard size
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this, (v, insets) -> {
+            int bottomInset = insets.getSystemWindowInsetBottom();
+            int rightInset = insets.getSystemWindowInsetRight();
+            
+            // If inset is huge (like > 150dp), it's the Keyboard. We ignore it so the drawer doesn't squish!
+            if (bottomInset > SketchwareUtil.dpToPx(150)) {
+                bottomInset = 0; 
+            }
+            
+            v.setPadding(0, 0, rightInset, bottomInset + SketchwareUtil.dpToPx(4));
+            return insets;
+        });
 
         addDrawerSubheaderItem(R.string.design_drawer_menu_title, content);
         addDrawerItem(R.id.item_library_manager, R.drawable.ic_mtrl_category, R.string.design_drawer_menu_title_library, R.string.design_drawer_menu_description_library, content);
@@ -135,8 +150,6 @@ public class DesignDrawer extends LinearLayout {
         addDrawerItem(R.id.item_xml_command_manager, R.drawable.ic_mtrl_code, R.string.design_drawer_menu_title_xml_command, R.string.design_drawer_menu_description_xml_command, content);
         addDrawerItem(R.id.item_logcat_reader, R.drawable.ic_mtrl_article, R.string.design_drawer_menu_title_logcat_reader, R.string.design_drawer_menu_subtitle_logcat_reader, content);
 
-        // if you want to show text "Global", uncomment next line
-        // addDrawerSubheaderItem(R.string.design_drawer_menu_bottom_title, this);
         addDrawerDivider(this);
         addDrawerItem(R.id.item_collection_manager, R.drawable.ic_mtrl_bookmark, R.string.design_drawer_menu_title_collection, R.string.design_drawer_menu_description_collection, this);
     }
@@ -158,7 +171,6 @@ public class DesignDrawer extends LinearLayout {
         int maxWidth = SketchwareUtil.dpToPx(300);
         switch (MeasureSpec.getMode(widthSpec)) {
             case MeasureSpec.EXACTLY:
-                // nothing
                 break;
             case MeasureSpec.AT_MOST:
                 widthSpec = MeasureSpec.makeMeasureSpec(Math.min(MeasureSpec.getSize(widthSpec), maxWidth), MeasureSpec.EXACTLY);
@@ -174,7 +186,8 @@ public class DesignDrawer extends LinearLayout {
         DrawerItem drawerItem = new DrawerItem(getContext());
         drawerItem.setContent(iconResId, Helper.getResString(drawerItem, titleResId), Helper.getResString(drawerItem, descriptionResId));
         drawerItem.setOnClickListener(id, drawerItemClickListener);
-        view.addView(drawerItem);
+        // BUG FIX 4: Explicitly provide LayoutParams so items stretch properly and don't glitch
+        view.addView(drawerItem, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
     }
 
     private void addDrawerSubheaderItem(@StringRes int subheaderResId, ViewGroup view) {
