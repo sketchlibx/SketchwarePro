@@ -1,8 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,17 +19,16 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_margin="5dp">
+            android:layout_marginEnd="8dp">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/version_code"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Version code"
-                android:singleLine="true"
+                android:maxLines="1"
                 android:imeOptions="actionNext"
-                android:inputType="number"
-                android:textSize="13sp" />
+                android:inputType="number" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -33,17 +36,16 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_margin="5dp">
+            android:layout_marginStart="8dp">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/version_name1"
                 android:layout_width="match_parent"
-                android:singleLine="true"
                 android:layout_height="wrap_content"
                 android:hint="Version name"
+                android:maxLines="1"
                 android:imeOptions="actionNext"
-                android:digits="0123456789."
-                android:textSize="13sp" />
+                android:digits="0123456789." />
         </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>
 
@@ -51,15 +53,14 @@
         android:id="@+id/tilVersionNameExtra"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="5dp">
+        android:layout_marginTop="16dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/version_name2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:singleLine="true"
             android:hint="Version name extra"
-            android:imeOptions="actionDone"
-            android:textSize="13sp" />
+            android:maxLines="1"
+            android:imeOptions="actionDone" />
     </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>
