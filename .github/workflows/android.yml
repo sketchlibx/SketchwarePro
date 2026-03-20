@@ -55,13 +55,10 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Set environmental variables
-        shell: bash
+      - name: Create google-services.json
+        run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
         env:
-          JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        if: ${{ env.JSON_CONTENT != '' }}
-        run: |
-          printf 'GOOGLE_SERVICES_JSON<<EOF\n%s\nEOF\n' "$JSON_CONTENT" >> $GITHUB_ENV
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -69,7 +66,7 @@ jobs:
       - name: Build Release APK
         env:
           SKETCHUB_API_KEY: ${{ secrets.SKETCHUB_API_KEY }}
-        run: gradle assembleRelease
+        run: ./gradlew assembleRelease
 
       - name: Set short SHA
         id: set_sha
@@ -163,4 +160,3 @@ jobs:
           git commit -m "feat: Update app about screen data"
           git push
         continue-on-error: true
-      
