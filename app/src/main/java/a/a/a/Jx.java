@@ -582,26 +582,27 @@ public class Jx {
         sb.append("}").append(EOL);
         String code = sb.toString();
 
+        // overwriting explicitly written getActivity() or other contexts.
         if (isFragment) {
-            code = code.replaceAll("getApplicationContext\\(\\)", "getContext().getApplicationContext()")
-                    .replaceAll("getBaseContext\\(\\)", "getActivity().getBaseContext()")
-                    .replaceAll("\\(ClipboardManager\\) getSystemService", "(ClipboardManager) getContext().getSystemService")
-                    .replaceAll("\\(Vibrator\\) getSystemService", "(Vibrator) getContext().getSystemService")
-                    .replaceAll("\\(SensorManager\\) getSystemService", "(SensorManager) getContext().getSystemService")
-                    .replaceAll("Typeface.createFromAsset\\(getAssets\\(\\)", "Typeface.createFromAsset(getContext().getAssets()")
-                    .replaceAll("= getAssets\\(\\).open", "= getContext().getAssets().open")
-                    .replaceAll("getSharedPreferences", "getContext().getSharedPreferences")
+            code = code.replaceAll("(?<!\\.)getApplicationContext\\(\\)", "getContext().getApplicationContext()")
+                    .replaceAll("(?<!\\.)getBaseContext\\(\\)", "getActivity().getBaseContext()")
+                    .replaceAll("\\(ClipboardManager\\) (?<!\\.)getSystemService", "(ClipboardManager) getContext().getSystemService")
+                    .replaceAll("\\(Vibrator\\) (?<!\\.)getSystemService", "(Vibrator) getContext().getSystemService")
+                    .replaceAll("\\(SensorManager\\) (?<!\\.)getSystemService", "(SensorManager) getContext().getSystemService")
+                    .replaceAll("Typeface.createFromAsset\\((?<!\\.)getAssets\\(\\)", "Typeface.createFromAsset(getContext().getAssets()")
+                    .replaceAll("= (?<!\\.)getAssets\\(\\).open", "= getContext().getAssets().open")
+                    .replaceAll("(?<!\\.)getSharedPreferences", "getContext().getSharedPreferences")
                     .replaceAll("AlertDialog.Builder\\(this\\);", "AlertDialog.Builder(getActivity());")
                     .replaceAll("SpeechRecognizer.createSpeechRecognizer\\(this\\);", "SpeechRecognizer.createSpeechRecognizer(getContext());")
                     .replaceAll("new RequestNetwork\\(this\\);", "new RequestNetwork((Activity) getContext());")
                     .replaceAll("new BluetoothConnect\\(this\\);", "new BluetoothConnect((Activity) getContext());")
                     .replaceAll("MobileAds.getRewardedVideoAdInstance\\(this\\);", "MobileAds.getRewardedVideoAdInstance(getContext());")
-                    .replaceAll("runOnUiThread\\(new", "getActivity().runOnUiThread(new")
+                    .replaceAll("(?<!\\.)runOnUiThread\\(new", "getActivity().runOnUiThread(new")
                     .replaceAll(".setLayoutManager\\(new LinearLayoutManager\\(this", ".setLayoutManager(new LinearLayoutManager(getContext()")
-                    .replaceAll("getLayoutInflater\\(\\)", "getActivity().getLayoutInflater()")
-                    .replaceAll("getSupportFragmentManager\\(\\)", "getActivity().getSupportFragmentManager()");
+                    .replaceAll("(?<!\\.)getLayoutInflater\\(\\)", "getActivity().getLayoutInflater()")
+                    .replaceAll("(?<!\\.)getSupportFragmentManager\\(\\)", "getActivity().getSupportFragmentManager()");
         } else if (buildConfig.g) {
-            code = code.replaceAll("getFragmentManager", "getSupportFragmentManager");
+            code = code.replaceAll("(?<!\\.)getFragmentManager", "getSupportFragmentManager");
         }
 
         return CommandBlock.CB(Lx.j(code, false));
