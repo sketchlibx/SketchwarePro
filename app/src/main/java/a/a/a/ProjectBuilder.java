@@ -209,9 +209,10 @@ public class ProjectBuilder {
     }
 
     public boolean isD8Enabled() {
-        // 🚀 FEATURE: DX is completely deprecated and cannot handle Java 17 bytecodes.
-        // Forcing D8 compiler as the absolute default for V7.0.0
-        return true;
+        return build_settings.getValue(
+                BuildSettings.SETTING_DEXER,
+                BuildSettings.SETTING_DEXER_DX
+        ).equals(BuildSettings.SETTING_DEXER_D8);
     }
 
     public String getDxRunningText() {
@@ -289,9 +290,13 @@ public class ProjectBuilder {
 
         /*
          * Add lambda helper classes
-         * For Java 17, D8 handles lambdas, but keeping stubs for ECJ compatibility during resolution
+         * Since all versions above java 7 supports lambdas, this should work
          */
-        classpath.append(":").append(new File(BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH, "core-lambda-stubs.jar").getAbsolutePath());
+        if (!build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION,
+                        BuildSettings.SETTING_JAVA_VERSION_1_7)
+                .equals(BuildSettings.SETTING_JAVA_VERSION_1_7)) {
+            classpath.append(":").append(new File(BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH, "core-lambda-stubs.jar").getAbsolutePath());
+        }
 
         /* Add used built-in libraries to the classpath */
         for (Jp library : builtInLibraryManager.getLibraries()) {
@@ -349,9 +354,7 @@ public class ProjectBuilder {
         }
 
         // remove trailing delimiter
-        if (classpath.length() > 0) {
-            classpath.deleteCharAt(classpath.length() - 1);
-        }
+        classpath.deleteCharAt(classpath.length() - 1);
 
         return classpath.toString();
     }
@@ -543,14 +546,12 @@ public class ProjectBuilder {
             String javaVer = build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION, BuildSettings.SETTING_JAVA_VERSION_1_8);
             
             if (javaVer.equals(BuildSettings.SETTING_JAVA_VERSION_17)) {
-                // Java 17 support requires --release for ECJ
                 args.add("--release");
                 args.add("17");
             } else if (javaVer.equals(BuildSettings.SETTING_JAVA_VERSION_11)) {
                 args.add("--release");
                 args.add("11");
             } else {
-                // Legacy Java 1.8 / 1.7 support
                 args.add("-" + javaVer);
                 args.add("-source");
                 args.add(javaVer);
@@ -894,7 +895,18 @@ public class ProjectBuilder {
         }
         config.addAll(mll.getPgRules());
         ArrayList<String> jars = new ArrayList<>();
-        jars.add(yq.compiledClassesPath + ".jar");
+        
+        File compiledClassesDir = new File(yq.compiledClassesPath);
+        if (!compiledClassesDir.exists() || compiledClassesDir.list() == null || compiledClassesDir.list().length == 0) {
+            throw new IOException("Compiled classes directory is empty or does not exist. Compilation might have failed silently.");
+        }
+
+        try {
+            JarBuilder.INSTANCE.generateJar(compiledClassesDir);
+            jars.add(yq.compiledClassesPath + ".jar");
+        } catch (Exception e) {
+            LogUtil.e(TAG, "Failed to build temp JAR for R8", e);
+        }
 
         for (HashMap<String, Object> hashMap : mll.list) {
             String obj = hashMap.get("name").toString();
@@ -903,7 +915,6 @@ public class ProjectBuilder {
             }
         }
         try {
-            JarBuilder.INSTANCE.generateJar(new File(yq.compiledClassesPath));
             new R8Compiler(rules, config.toArray(new String[0]), getProguardClasspath().split(":"), jars.toArray(new String[0]), settings.getMinSdkVersion(), yq).compile();
         } catch (Exception e) {
             throw new IOException(e);
@@ -914,17 +925,14 @@ public class ProjectBuilder {
     public void runProguard() throws IOException {
         long savedTimeMillis = System.currentTimeMillis();
 
-        // 🚀 FEATURE: Added failsafe to ensure classes actually exist before running Proguard
         File compiledClassesDir = new File(yq.compiledClassesPath);
         if (!compiledClassesDir.exists() || compiledClassesDir.list() == null || compiledClassesDir.list().length == 0) {
             throw new IOException("Compiled classes directory is empty or does not exist. Compilation might have failed silently.");
         }
 
-        // 🚀 FEATURE: Generates a temporary JAR from compiled classes to ensure ProGuard input is valid for Java 17+
-        File tempJar = new File(yq.binDirectoryPath, "temp_classes.jar");
         try {
-             JarBuilder.INSTANCE.generateJar(compiledClassesDir, tempJar);
-        } catch(Exception e) {
+            JarBuilder.INSTANCE.generateJar(compiledClassesDir);
+        } catch (Exception e) {
             LogUtil.e(TAG, "Failed to build temp JAR for Proguard", e);
         }
 
@@ -953,6 +961,7 @@ public class ProjectBuilder {
 
         /* Include compiled Java classes. Using JAR to prevent input failures */
         args.add("-injars");
+        File tempJar = new File(yq.compiledClassesPath + ".jar");
         if (tempJar.exists()) {
              args.add(tempJar.getAbsolutePath());
         } else {
