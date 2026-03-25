@@ -51,7 +51,6 @@ import mod.agus.jcoderz.dex.Dex;
 import mod.agus.jcoderz.dex.FieldId;
 import mod.agus.jcoderz.dex.MethodId;
 import mod.agus.jcoderz.dex.ProtoId;
-import mod.agus.jcoderz.dex.TypeIds;
 import mod.agus.jcoderz.dx.command.dexer.DxContext;
 import mod.agus.jcoderz.dx.command.dexer.Main;
 import mod.agus.jcoderz.dx.merge.CollisionPolicy;
