@@ -539,9 +539,24 @@ public class ProjectBuilder {
              PrintWriter errWriter = new PrintWriter(errOutputStream)) {
 
             ArrayList<String> args = new ArrayList<>();
-            // 🚀 FEATURE: V7.0.0 forces Java 17 compilation via ECJ
-            args.add("--release");
-            args.add("17");
+            // 🚀 FEATURE: Dynamically fetches Java Version from settings
+            String javaVer = build_settings.getValue(BuildSettings.SETTING_JAVA_VERSION, BuildSettings.SETTING_JAVA_VERSION_1_8);
+            
+            if (javaVer.equals(BuildSettings.SETTING_JAVA_VERSION_17)) {
+                // Java 17 support requires --release for ECJ
+                args.add("--release");
+                args.add("17");
+            } else if (javaVer.equals(BuildSettings.SETTING_JAVA_VERSION_11)) {
+                args.add("--release");
+                args.add("11");
+            } else {
+                // Legacy Java 1.8 / 1.7 support
+                args.add("-" + javaVer);
+                args.add("-source");
+                args.add(javaVer);
+                args.add("-target");
+                args.add(javaVer);
+            }
             
             args.add("-nowarn");
             if (!build_settings.getValue(BuildSettings.SETTING_NO_WARNINGS,
@@ -899,6 +914,20 @@ public class ProjectBuilder {
     public void runProguard() throws IOException {
         long savedTimeMillis = System.currentTimeMillis();
 
+        // 🚀 FEATURE: Added failsafe to ensure classes actually exist before running Proguard
+        File compiledClassesDir = new File(yq.compiledClassesPath);
+        if (!compiledClassesDir.exists() || compiledClassesDir.list() == null || compiledClassesDir.list().length == 0) {
+            throw new IOException("Compiled classes directory is empty or does not exist. Compilation might have failed silently.");
+        }
+
+        // 🚀 FEATURE: Generates a temporary JAR from compiled classes to ensure ProGuard input is valid for Java 17+
+        File tempJar = new File(yq.binDirectoryPath, "temp_classes.jar");
+        try {
+             JarBuilder.INSTANCE.generateJar(compiledClassesDir, tempJar);
+        } catch(Exception e) {
+            LogUtil.e(TAG, "Failed to build temp JAR for Proguard", e);
+        }
+
         ArrayList<String> args = new ArrayList<>();
 
         /* Include global ProGuard rules */
@@ -922,9 +951,13 @@ public class ProjectBuilder {
             args.add(rule);
         }
 
-        /* Include compiled Java classes (?) IT SAYS -in*jar*s, so why include .class es? */
+        /* Include compiled Java classes. Using JAR to prevent input failures */
         args.add("-injars");
-        args.add(yq.compiledClassesPath);
+        if (tempJar.exists()) {
+             args.add(tempJar.getAbsolutePath());
+        } else {
+             args.add(yq.compiledClassesPath);
+        }
 
         for (HashMap<String, Object> hashMap : mll.list) {
             String obj = hashMap.get("name").toString();
