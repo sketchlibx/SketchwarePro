@@ -238,7 +238,6 @@ public class ViewPane extends RelativeLayout {
         } else {
             setBackground(AppCompatResources.getDrawable(context, R.drawable.bg_view_pane));
         }
-        //addRootLayout();
         initTextView();
     }
 
@@ -327,7 +326,10 @@ public class ViewPane extends RelativeLayout {
     }
 
     private View getUnknownItemView(ViewBean bean) {
-        bean.type = ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+        // FIX: Removed 'bean.type = ViewBean.VIEW_TYPE_LAYOUT_LINEAR' to prevent destructive mutation of custom views
+        if (bean.convert != null && bean.convert.contains("ConstraintLayout")) {
+            return new ItemRelativeLayout(context);
+        }
         return new ItemLinearLayout(context);
     }
 

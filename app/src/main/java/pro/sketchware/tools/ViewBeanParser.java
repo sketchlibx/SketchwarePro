@@ -200,8 +200,12 @@ public class ViewBeanParser {
                     }
 
                     ViewBean bean = new ViewBean(id, type);
-
                     bean.convert = name;
+
+                    // FIX: Ensure custom views retain their identity and don't degrade to a simple LinearLayout
+                    if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !name.equals("LinearLayout") && name.contains(".")) {
+                        bean.isCustomWidget = true;
+                    }
 
                     ViewBean parent = viewStack.isEmpty() ? null : viewStack.peek();
                     // Set parent ID (or root if no parent)
@@ -235,10 +239,36 @@ public class ViewBeanParser {
             }
             parser.next();
         }
+        
         for (ViewBean bean : beans) {
             var attr = beansAttributes.getOrDefault(bean.id, null);
             if (attr != null) {
                 new ViewBeanFactory(bean).applyAttributes(attr);
+                
+                // FIX: Preserve all attributes including custom constraints, padding, and third-party values
+                if (bean.parentAttributes == null) {
+                    bean.parentAttributes = new HashMap<>();
+                }
+                
+                StringBuilder injectBuilder = new StringBuilder(bean.inject != null ? bean.inject : "");
+                
+                for (Map.Entry<String, String> entry : attr.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    
+                    bean.parentAttributes.put(key, value);
+                    
+                    if (key.startsWith("app:") || key.startsWith("tools:") || (!key.startsWith("android:") && key.contains(":"))) {
+                        String injectProp = key + "=\"" + value + "\"";
+                        if (!injectBuilder.toString().contains(injectProp)) {
+                            if (injectBuilder.length() > 0 && !injectBuilder.toString().endsWith("\n")) {
+                                injectBuilder.append("\n");
+                            }
+                            injectBuilder.append(injectProp);
+                        }
+                    }
+                }
+                bean.inject = injectBuilder.toString();
             }
         }
         return beans;
