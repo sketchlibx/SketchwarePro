@@ -12,6 +12,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.RadioButton;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -44,6 +45,7 @@ import a.a.a.lC;
 import dev.chrisbanes.insetter.Insetter;
 import mod.hey.studios.project.ProjectTracker;
 import mod.hey.studios.project.backup.BackupRestoreManager;
+import mod.sketchlibx.importer.ASProjectImporter;
 import pro.sketchware.R;
 import pro.sketchware.activities.main.activities.MainActivity;
 import pro.sketchware.databinding.MyprojectsBinding;
@@ -55,6 +57,7 @@ public class ProjectsFragment extends DA {
     private final List<HashMap<String, Object>> projectsList = new ArrayList<>();
     private MyprojectsBinding binding;
     private ProjectsAdapter projectsAdapter;
+    
     public final ActivityResultLauncher<Intent> openProjectSettings = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == Activity.RESULT_OK) {
             Intent data = result.getData();
@@ -69,6 +72,18 @@ public class ProjectsFragment extends DA {
             }
         }
     });
+
+    private final ActivityResultLauncher<Intent> pickAsZipLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null && data.getData() != null) {
+                        Uri zipUri = data.getData();
+                        new mod.sketchlibx.importer.ASProjectImporter(requireActivity(), zipUri, ProjectsFragment.this).execute();
+                    }
+                }
+            });
+
     private DB preference;
     private SearchView projectsSearchView;
     private MenuProvider menuProvider;
@@ -121,8 +136,24 @@ public class ProjectsFragment extends DA {
         openProjectSettings.launch(intent);
     }
 
-    public void restoreProject() {
-        new BackupRestoreManager(getActivity(), this).restore();
+    public void showImportRestoreDialog() {
+        String[] options = {
+                "Restore Sketchware Backup (.swb)",
+                "Import Android Studio Project (.zip)"
+        };
+
+        new MaterialAlertDialogBuilder(requireActivity())
+                .setTitle("Restore / Import")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        new BackupRestoreManager(getActivity(), this).restore();
+                    } else if (which == 1) {
+                        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                        intent.setType("application/zip");
+                        pickAsZipLauncher.launch(intent);
+                    }
+                })
+                .show();
     }
 
     @Override
@@ -134,7 +165,7 @@ public class ProjectsFragment extends DA {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        binding = null; // avoid memory leaks
+        binding = null; 
     }
 
     @Override
@@ -151,7 +182,7 @@ public class ProjectsFragment extends DA {
         binding.myprojects.setAdapter(projectsAdapter);
         binding.myprojects.setHasFixedSize(true);
 
-        binding.myprojects.post(this::refreshProjectsList); // wait for RecyclerView to be ready
+        binding.myprojects.post(this::refreshProjectsList); 
         UI.addSystemWindowInsetToPadding(binding.specialActionContainer, true, false, true, false);
         UI.addSystemWindowInsetToPadding(binding.loadingContainer, true, false, true, true);
         UI.addSystemWindowInsetToPadding(binding.titleContainer, true, false, true, false);
@@ -166,7 +197,8 @@ public class ProjectsFragment extends DA {
         });
 
         binding.iconSort.setOnClickListener(v -> showProjectSortingDialog());
-        binding.specialAction.getRoot().setOnClickListener(v -> restoreProject());
+        
+        binding.specialAction.getRoot().setOnClickListener(v -> showImportRestoreDialog());
 
         menuProvider = new MenuProvider() {
             @Override
@@ -210,13 +242,11 @@ public class ProjectsFragment extends DA {
     }
 
     public void refreshProjectsList() {
-        // Check if the fragment is still attached to the activity
         if (!isAdded()) return;
 
-        // Don't load project list without having permissions
         if (!c()) {
             if (binding.swipeRefresh.isRefreshing()) binding.swipeRefresh.setRefreshing(false);
-            ((MainActivity) requireActivity()).s(); // ask for permissions
+            ((MainActivity) requireActivity()).s(); 
             return;
         }
 
