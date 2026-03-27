@@ -67,7 +67,6 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
     }
 
     public static void handleJavaVersionChange(String choice) {
-        // 🚀 FEATURE: Warning adjusted since D8 is now forced
         if (choice.equals(SETTING_JAVA_VERSION_1_7)) {
             SketchwareUtil.toast("Warning: Java 1.7 does not support modern AndroidX libraries.");
         }
@@ -101,8 +100,8 @@ public class BuildSettingsBottomSheet extends BottomSheetDialogFragment {
         binding.tilAndroidJar.getEditText().setText(projectSettings.getValue(SETTING_ANDROID_JAR_PATH, ""));
         binding.tilClasspath.getEditText().setText(projectSettings.getValue(SETTING_CLASSPATH, ""));
 
-        //  FEATURE: Removed "Dx" from UI, forcing D8
-        setRadioGroupOptions(binding.rgDexer, new String[]{"D8"}, SETTING_DEXER, "D8");
+        //  FEATURE: Brought "Dx" back to UI, but default is D8
+        setRadioGroupOptions(binding.rgDexer, new String[]{"Dx", "D8"}, SETTING_DEXER, "D8");
         
         // FEATURE: Default Java version changed to 1.8 for modern compatibility
         setRadioGroupOptions(binding.rgJavaVersion, getAvailableJavaVersions(), SETTING_JAVA_VERSION, "1.8");
