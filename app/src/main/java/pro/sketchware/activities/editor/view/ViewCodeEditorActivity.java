@@ -256,13 +256,16 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             parser.setSkipRoot(true);
             var parsedLayout = parser.parse();
             
-            // FIX: Restore visual identity (type, custom flags) of views from old memory data
+            // FIX: Restore visual identity AND clear cached class info to prevent ClassCastException
             ArrayList<ViewBean> oldLayout = jC.a(sc_id).d(filename);
             if (oldLayout != null) {
                 for (ViewBean newBean : parsedLayout) {
                     for (ViewBean oldBean : oldLayout) {
                         if (newBean.id.equals(oldBean.id)) {
                             newBean.type = oldBean.type;
+                            newBean.clearClassInfo(); // <--- CRITICAL FIX
+                            newBean.parentType = oldBean.parentType;
+                            newBean.parentClassInfo = null; // <--- CRITICAL FIX
                             newBean.isCustomWidget = oldBean.isCustomWidget;
                             newBean.customView = oldBean.customView;
                             newBean.convert = oldBean.convert;
