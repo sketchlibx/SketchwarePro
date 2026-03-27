@@ -198,6 +198,7 @@ public class ViewBeanParser {
                     boolean isCustom = false;
                     String customView = "";
                     String convert = name;
+                    boolean oldBeanFound = false;
 
                     if (oldLayout != null) {
                         for (ViewBean oldBean : oldLayout) {
@@ -206,13 +207,17 @@ public class ViewBeanParser {
                                 isCustom = oldBean.isCustomWidget;
                                 customView = oldBean.customView;
                                 convert = oldBean.convert;
+                                oldBeanFound = true;
                                 break;
                             }
                         }
-                    } else {
-                        if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !name.equals("LinearLayout") && name.contains(".")) {
-                            isCustom = true;
-                        }
+                    } 
+                    
+                    // FIX: If the user copy-pasted the layout, oldLayout won't exist.
+                    // We must deduce Custom Widgets strictly by the tag name (if it contains ".")
+                    if (!oldBeanFound && name.contains(".")) {
+                        isCustom = true;
+                        convert = name;
                     }
 
                     ViewBean bean = new ViewBean(id, type);
@@ -267,7 +272,7 @@ public class ViewBeanParser {
                     String key = entry.getKey();
                     String value = entry.getValue();
                     
-                    // Core properties that Sketchware generates natively for ALL views
+                    // Core properties that Sketchware natively generates for ALL views
                     boolean isNativeToAll = key.equals("android:id") || key.equals("android:layout_width") || key.equals("android:layout_height") ||
                                             key.startsWith("android:layout_margin") || key.startsWith("android:padding") ||
                                             key.equals("android:background") || key.equals("android:layout_weight") ||
@@ -286,13 +291,15 @@ public class ViewBeanParser {
                         isNativeToType = true;
                     } else if (type == ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR && (key.equals("android:progress") || key.equals("android:max") || key.equals("android:indeterminate") || key.equals("style"))) {
                         isNativeToType = true;
-                        // Special override for custom Progress/Switch styles so they don't get lost
+                        // Special override for Progress/Indicator styles so they don't get lost
                         if (key.equals("style")) {
                             bean.progressStyle = value; 
                         }
                         if (key.equals("android:indeterminate")) {
                             bean.indeterminate = value;
                         }
+                    } else if (type == ViewBean.VIEW_TYPE_WIDGET_SEEKBAR && (key.equals("android:progress") || key.equals("android:max"))) {
+                        isNativeToType = true;
                     } else if ((type == ViewBean.VIEW_TYPE_WIDGET_CHECKBOX || type == ViewBean.VIEW_TYPE_WIDGET_SWITCH) && key.equals("android:checked")) {
                         isNativeToType = true;
                     } else if (type == ViewBean.VIEW_TYPE_WIDGET_LISTVIEW && (key.equals("android:dividerHeight") || key.equals("android:choiceMode"))) {
@@ -301,7 +308,7 @@ public class ViewBeanParser {
                         isNativeToType = true;
                     }
 
-                    // If Sketchware won't generate it natively, WE inject it forcefully!
+                    // If Sketchware won't generate it natively, WE inject it forcibly!
                     if (!isNativeToAll && !isNativeToType) {
                         if (key.startsWith("android:layout_")) {
                             bean.parentAttributes.put(key, value);

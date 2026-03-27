@@ -13,6 +13,8 @@ public class ThemeManager {
     public static final int THEME_DARK = 2;
     private static final String THEME_PREF = "themedata";
     private static final String THEME_KEY = "idetheme";
+    private static final String DYNAMIC_COLORS_KEY = "dynamic_colors";
+    private static final String PURE_BLACK_KEY = "pure_black";
 
     public static void applyTheme(Context context, int type) {
         saveTheme(context, type);
@@ -50,6 +52,24 @@ public class ThemeManager {
 
     private static void saveTheme(Context context, int theme) {
         getPreferences(context).edit().putInt(THEME_KEY, theme).apply();
+    }
+
+    // Dynamic Colors methods (Android 12+ Material You)
+    public static boolean isDynamicColorsEnabled(Context context) {
+        return getPreferences(context).getBoolean(DYNAMIC_COLORS_KEY, false);
+    }
+
+    public static void setDynamicColorsEnabled(Context context, boolean enabled) {
+        getPreferences(context).edit().putBoolean(DYNAMIC_COLORS_KEY, enabled).apply();
+    }
+
+    // Pure Black AMOLED mode methods
+    public static boolean isPureBlackEnabled(Context context) {
+        return getPreferences(context).getBoolean(PURE_BLACK_KEY, false);
+    }
+
+    public static void setPureBlackEnabled(Context context, boolean enabled) {
+        getPreferences(context).edit().putBoolean(PURE_BLACK_KEY, enabled).apply();
     }
 
     private static SharedPreferences getPreferences(Context context) {
