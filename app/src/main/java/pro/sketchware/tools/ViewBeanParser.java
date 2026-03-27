@@ -117,6 +117,21 @@ public class ViewBeanParser {
         }
 
         int type = ViewBean.getViewTypeByTypeName(className);
+
+        // PRO FIX: Smart Mapping for Custom Widgets during Copy-Paste
+        if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !className.equals("LinearLayout")) {
+            if (className.contains("Switch")) type = ViewBean.VIEW_TYPE_WIDGET_SWITCH;
+            else if (className.contains("ProgressIndicator") || className.contains("ProgressBar")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
+            else if (className.contains("CheckBox")) type = ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
+            else if (className.contains("Slider") || className.contains("SeekBar")) type = ViewBean.VIEW_TYPE_WIDGET_SEEKBAR;
+            else if (className.contains("Button")) type = ViewBean.VIEW_TYPE_WIDGET_BUTTON;
+            else if (className.contains("TextView")) type = ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
+            else if (className.contains("ImageView")) type = ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
+            else if (className.contains("CardView")) type = 36;
+            else if (className.contains("RecyclerView")) type = 48;
+            else if (className.contains("FloatingActionButton") || className.contains("FAB")) type = ViewBean.VIEW_TYPE_WIDGET_FAB;
+        }
+
         return getViewTypeByTag(name, type);
     }
 
@@ -213,8 +228,6 @@ public class ViewBeanParser {
                         }
                     } 
                     
-                    // FIX: If the user copy-pasted the layout, oldLayout won't exist.
-                    // We must deduce Custom Widgets strictly by the tag name (if it contains ".")
                     if (!oldBeanFound && name.contains(".")) {
                         isCustom = true;
                         convert = name;
@@ -266,13 +279,13 @@ public class ViewBeanParser {
                     bean.parentAttributes = new HashMap<>();
                 }
                 
-                StringBuilder injectBuilder = new StringBuilder(bean.inject != null ? bean.inject : "");
+                // Using LinkedHashMap to absolutely prevent duplicates
+                Map<String, String> injectMap = new LinkedHashMap<>();
                 
                 for (Map.Entry<String, String> entry : attr.entrySet()) {
                     String key = entry.getKey();
                     String value = entry.getValue();
                     
-                    // Core properties that Sketchware natively generates for ALL views
                     boolean isNativeToAll = key.equals("android:id") || key.equals("android:layout_width") || key.equals("android:layout_height") ||
                                             key.startsWith("android:layout_margin") || key.startsWith("android:padding") ||
                                             key.equals("android:background") || key.equals("android:layout_weight") ||
@@ -281,7 +294,6 @@ public class ViewBeanParser {
                     boolean isNativeToType = false;
                     int type = bean.type;
                     
-                    // Type-specific natively generated properties
                     if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && key.equals("android:orientation")) {
                         isNativeToType = true;
                     } else if ((type == ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW || type == ViewBean.VIEW_TYPE_WIDGET_BUTTON || type == ViewBean.VIEW_TYPE_WIDGET_EDITTEXT || type == ViewBean.VIEW_TYPE_WIDGET_CHECKBOX || type == ViewBean.VIEW_TYPE_WIDGET_SWITCH) &&
@@ -289,12 +301,8 @@ public class ViewBeanParser {
                         isNativeToType = true;
                     } else if (type == ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW && (key.equals("android:src") || key.equals("android:scaleType"))) {
                         isNativeToType = true;
-                    } else if (type == ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR && (key.equals("android:progress") || key.equals("android:max") || key.equals("android:indeterminate") || key.equals("style"))) {
+                    } else if (type == ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR && (key.equals("android:progress") || key.equals("android:max") || key.equals("android:indeterminate"))) {
                         isNativeToType = true;
-                        // Special override for Progress/Indicator styles so they don't get lost
-                        if (key.equals("style")) {
-                            bean.progressStyle = value; 
-                        }
                         if (key.equals("android:indeterminate")) {
                             bean.indeterminate = value;
                         }
@@ -308,20 +316,20 @@ public class ViewBeanParser {
                         isNativeToType = true;
                     }
 
-                    // If Sketchware won't generate it natively, WE inject it forcibly!
                     if (!isNativeToAll && !isNativeToType) {
                         if (key.startsWith("android:layout_")) {
                             bean.parentAttributes.put(key, value);
                         } else {
-                            String injectProp = key + "=\"" + value + "\"";
-                            if (!injectBuilder.toString().contains(key + "=")) {
-                                if (injectBuilder.length() > 0 && !injectBuilder.toString().endsWith("\n")) {
-                                    injectBuilder.append("\n");
-                                }
-                                injectBuilder.append(injectProp);
-                            }
+                            injectMap.put(key, value);
                         }
                     }
+                }
+                
+                // Rebuild inject string perfectly without duplicates
+                StringBuilder injectBuilder = new StringBuilder();
+                for (Map.Entry<String, String> entry : injectMap.entrySet()) {
+                    if (injectBuilder.length() > 0) injectBuilder.append("\n");
+                    injectBuilder.append(entry.getKey()).append("=\"").append(entry.getValue()).append("\"");
                 }
                 bean.inject = injectBuilder.toString();
             }
