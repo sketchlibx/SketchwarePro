@@ -3,6 +3,7 @@ package mod.sketchlibx.importer;
 import android.app.Activity;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Environment;
 import android.view.LayoutInflater;
 import android.widget.Toast;
 
@@ -50,6 +51,8 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
     private ProgressMsgBoxBinding binding;
     private String errorMessage = "";
 
+    private final String FAB_JSON = "{\"adSize\":\"\",\"adUnitId\":\"\",\"alpha\":1.0,\"checked\":0,\"choiceMode\":0,\"clickable\":1,\"convert\":\"\",\"customView\":\"\",\"dividerHeight\":1,\"enabled\":1,\"firstDayOfWeek\":1,\"id\":\"_fab\",\"image\":{\"rotate\":0,\"scaleType\":\"CENTER\"},\"indeterminate\":\"false\",\"index\":0,\"inject\":\"\",\"layout\":{\"backgroundColor\":16777215,\"borderColor\":-16740915,\"gravity\":0,\"height\":-2,\"layoutGravity\":85,\"marginBottom\":16,\"marginLeft\":16,\"marginRight\":16,\"marginTop\":16,\"orientation\":-1,\"paddingBottom\":0,\"paddingLeft\":0,\"paddingRight\":0,\"paddingTop\":0,\"weight\":0,\"weightSum\":0,\"width\":-2},\"max\":100,\"parentAttributes\":{},\"parentType\":-1,\"preIndex\":0,\"preParentType\":0,\"progress\":0,\"progressStyle\":\"?android:progressBarStyle\",\"scaleX\":1.0,\"scaleY\":1.0,\"spinnerMode\":1,\"text\":{\"hint\":\"\",\"hintColor\":16777215,\"imeOption\":0,\"inputType\":1,\"line\":0,\"singleLine\":0,\"text\":\"\",\"textColor\":16777215,\"textFont\":\"default_font\",\"textSize\":12,\"textType\":0},\"translationX\":0.0,\"translationY\":0.0,\"type\":16}";
+
     public ASProjectImporter(Activity activity, Uri zipUri, ProjectsFragment fragment) {
         this.activityRef = new WeakReference<>(activity);
         this.zipUri = zipUri;
@@ -91,11 +94,9 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             publishProgress("Extracting ZIP...");
             extractZipFromUri(act, zipUri, cacheDir);
 
-            // Step 1: Generate Safe Sketchware Project ID
             String newScId = lC.b(); 
             publishProgress("Setting up project " + newScId + "...");
 
-            // Step 2: Initialize Project Data
             HashMap<String, Object> projMap = new HashMap<>();
             projMap.put("sc_id", newScId);
             projMap.put("my_ws_name", "Imported_AS_Project");
@@ -103,12 +104,20 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             projMap.put("my_sc_pkg_name", "com.imported.project");
             projMap.put("sc_ver_code", "1");
             projMap.put("sc_ver_name", "1.0");
+            projMap.put("color_primary", -10455380);
+            projMap.put("color_primary_dark", -10455380);
+            projMap.put("color_accent", -10455380);
+            projMap.put("color_control_highlight", -2497793);
+            projMap.put("color_control_normal", -10455380);
             projMap.put("my_sc_reg_dt", new nB().a("yyyyMMddHHmmss"));
             lC.a(newScId, projMap);
 
-            // Initialize File Structs
-            wq.a(act.getApplicationContext(), newScId);
-            new oB().b(wq.b(newScId));
+            String dataPath = wq.b(newScId);
+            String filesPath = dataPath + File.separator + "files";
+            FileUtil.makeDir(filesPath + File.separator + "java");
+            FileUtil.makeDir(filesPath + File.separator + "resource");
+            FileUtil.makeDir(filesPath + File.separator + "assets");
+            FileUtil.makeDir(filesPath + File.separator + "app-icon");
 
             File asSrcMain = findSrcMainFolder(new File(cacheDir));
             if (asSrcMain == null) {
@@ -116,67 +125,136 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                 return false;
             }
 
-            // Step 3: Parse Layouts & Custom Views
-            publishProgress("Parsing XML Layouts...");
+            Gson gson = new Gson();
+            oB fileEncryptor = new oB();
+
+            publishProgress("Parsing & Encrypting XML Layouts...");
             File layoutDir = new File(asSrcMain, "res/layout");
-            Set<String> customViewsFound = new HashSet<>();
+            
+            StringBuilder fileStr = new StringBuilder();
+            StringBuilder viewStr = new StringBuilder();
+            StringBuilder logicStr = new StringBuilder();
+            
+            fileStr.append("@activity\n");
+
+            ArrayList<String> activityLayouts = new ArrayList<>();
+            ArrayList<String> customViewLayouts = new ArrayList<>();
 
             if (layoutDir.exists() && layoutDir.isDirectory()) {
                 File[] layouts = layoutDir.listFiles();
                 if (layouts != null) {
                     for (File xml : layouts) {
                         if (xml.getName().endsWith(".xml")) {
-                            String fileName = xml.getName().replace(".xml", "");
+                            String rawName = xml.getName().replace(".xml", "");
+                            
+                            boolean isActivity = rawName.startsWith("activity_");
+                            String fileName = isActivity ? rawName.replace("activity_", "") : rawName;
+                            
                             ViewBeanParser parser = new ViewBeanParser(xml);
                             parser.setSkipRoot(true);
                             ArrayList<ViewBean> parsedBeans = parser.parse();
 
-                            // Save ViewBeans to Sketchware logic
-                            jC.a(newScId).c.put(fileName, parsedBeans);
-
-                            // Register as an Activity/Fragment in Sketchware
-                            ProjectFileBean pfb = new ProjectFileBean(ProjectFileBean.PROJECT_FILE_TYPE_ACTIVITY, fileName);
-                            jC.b(newScId).a(pfb);
-
-                            // Detect Custom Views
+                            viewStr.append("@").append(fileName).append(".xml\n");
                             for (ViewBean bean : parsedBeans) {
-                                if (bean.isCustomWidget) {
-                                    customViewsFound.add(bean.convert);
-                                }
+                                viewStr.append(gson.toJson(bean)).append("\n");
+                            }
+
+                            if (isActivity) {
+                                activityLayouts.add(fileName);
+                                viewStr.append("@").append(fileName).append(".xml_fab\n").append(FAB_JSON).append("\n");
+                                fileStr.append("{\"fileName\":\"").append(fileName).append("\",\"fileType\":0,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
+                                
+                                String javaName = getJavaName(fileName);
+                                logicStr.append("@").append(javaName).append("_var\n");
+                                logicStr.append("@").append(javaName).append("_components\n");
+                                logicStr.append("@").append(javaName).append("_events\n");
+                            } else {
+                                customViewLayouts.add(fileName);
                             }
                         }
                     }
                 }
             }
 
-            // Auto-add Custom Views to global registry
-            for (String cvName : customViewsFound) {
-                ProjectFileBean cvBean = new ProjectFileBean(ProjectFileBean.PROJECT_FILE_TYPE_CUSTOM_VIEW, cvName);
+            fileStr.append("@customview\n");
+            for (String cv : customViewLayouts) {
+                fileStr.append("{\"fileName\":\"").append(cv).append("\",\"fileType\":1,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
             }
 
-            // Step 4: Java/Kotlin Source Transfer
-            publishProgress("Migrating Java/Kotlin source...");
+            publishProgress("Migrating Java/Kotlin source & Logic...");
             File javaDir = new File(asSrcMain, "java");
             if (!javaDir.exists()) javaDir = new File(asSrcMain, "kotlin");
             
             if (javaDir.exists()) {
-                String targetJavaPath = wq.b(newScId) + File.separator + "files" + File.separator + "java";
-                FileUtil.copyDirectory(javaDir, new File(targetJavaPath));
+                String targetJavaPath = filesPath + File.separator + "java";
+                copyAndFilterJavaFiles(javaDir, new File(targetJavaPath), logicStr, activityLayouts);
             }
 
-            // Step 5: Drawables / Assets
-            publishProgress("Copying assets...");
+            fileEncryptor.a(dataPath + File.separator + "view", fileEncryptor.d(viewStr.toString()));
+            fileEncryptor.a(dataPath + File.separator + "file", fileEncryptor.d(fileStr.toString()));
+            fileEncryptor.a(dataPath + File.separator + "logic", fileEncryptor.d(logicStr.toString()));
+
+            publishProgress("Processing Resources & Assets...");
             File resDir = new File(asSrcMain, "res");
+            StringBuilder resourceStr = new StringBuilder();
+            resourceStr.append("@images\n");
+
             if (resDir.exists()) {
-                String targetImgPath = wq.g() + File.separator + newScId;
+                String sketchwareImagesPath = Environment.getExternalStorageDirectory().getAbsolutePath() + 
+                        "/.sketchware/resources/images/" + newScId;
+                FileUtil.makeDir(sketchwareImagesPath);
+
                 for (File dir : resDir.listFiles()) {
                     if (dir.getName().startsWith("drawable") || dir.getName().startsWith("mipmap")) {
-                        FileUtil.copyDirectory(dir, new File(targetImgPath));
+                        File[] drawables = dir.listFiles();
+                        if (drawables != null) {
+                            for (File drawable : drawables) {
+                                if (drawable.getName().endsWith(".png") || drawable.getName().endsWith(".jpg")) {
+                                    String resFullName = drawable.getName();
+                                    String resName = resFullName.substring(0, resFullName.lastIndexOf("."));
+                                    
+                                    if (drawable.getName().contains("ic_launcher")) {
+                                        FileUtil.copyFile(drawable.getAbsolutePath(), filesPath + File.separator + "app-icon" + File.separator + "icon.png");
+                                    } else {
+                                        File targetFile = new File(sketchwareImagesPath, resFullName);
+                                        FileUtil.copyFile(drawable.getAbsolutePath(), targetFile.getAbsolutePath());
+                                        resourceStr.append("{\"resFullName\":\"").append(resFullName).append("\",\"resName\":\"").append(resName).append("\",\"resType\":1}\n");
+                                    }
+                                } else if (drawable.getName().endsWith(".xml")) {
+                                    File targetDir = new File(filesPath + File.separator + "resource" + File.separator + dir.getName());
+                                    FileUtil.makeDir(targetDir.getAbsolutePath());
+                                    FileUtil.copyFile(drawable.getAbsolutePath(), targetDir.getAbsolutePath() + File.separator + drawable.getName());
+                                }
+                            }
+                        }
+                    } else if (dir.getName().startsWith("values") || dir.getName().startsWith("xml")) {
+                        File targetDir = new File(filesPath + File.separator + "resource" + File.separator + dir.getName());
+                        FileUtil.makeDir(targetDir.getAbsolutePath());
+                        File[] valFiles = dir.listFiles();
+                        if (valFiles != null) {
+                            for (File valFile : valFiles) {
+                                FileUtil.copyFile(valFile.getAbsolutePath(), targetDir.getAbsolutePath() + File.separator + valFile.getName());
+                            }
+                        }
                     }
                 }
             }
 
-            // Step 6: Parse build.gradle for dependencies
+            resourceStr.append("@sounds\n@fonts\n");
+            fileEncryptor.a(dataPath + File.separator + "resource", fileEncryptor.d(resourceStr.toString()));
+
+            publishProgress("Setting up Library...");
+            String libraryStr = "@firebaseDB\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":0,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n" +
+                    "@compat\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{\"material3\":true,\"dynamic_colors\":true,\"theme\":\"DayNight\"},\"data\":\"\",\"libType\":1,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"Y\"}\n" +
+                    "@admob\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":2,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n" +
+                    "@googleMap\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":3,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n";
+            fileEncryptor.a(dataPath + File.separator + "library", fileEncryptor.d(libraryStr));
+
+            File assetsDir = new File(asSrcMain, "assets");
+            if (assetsDir.exists()) {
+                FileUtil.copyDirectory(assetsDir, new File(filesPath + File.separator + "assets"));
+            }
+
             publishProgress("Scanning Dependencies...");
             File buildGradle = new File(asSrcMain.getParentFile().getParentFile(), "build.gradle");
             if (!buildGradle.exists()) buildGradle = new File(asSrcMain.getParentFile().getParentFile(), "build.gradle.kts");
@@ -185,17 +263,15 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                 String gradleContent = FileUtil.readFile(buildGradle.getAbsolutePath());
                 ArrayList<HashMap<String, Object>> extractedLibs = extractDependencies(gradleContent);
                 if (!extractedLibs.isEmpty()) {
-                    String targetLocalLibPath = wq.b(newScId) + File.separator + "local_library_" + newScId;
+                    String targetLocalLibPath = wq.b(newScId) + File.separator + "local_library";
                     FileUtil.writeFile(targetLocalLibPath, new Gson().toJson(extractedLibs));
                 }
             }
 
-            // Save Managers
             jC.a(newScId).a();
             jC.b(newScId).a();
             jC.d(newScId).a();
 
-            // Cleanup
             FileUtil.deleteFile(cacheDir);
 
             return true;
@@ -223,7 +299,54 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         }
     }
 
-    // Helper: Safely extract ZIP from Android URI ContentResolver
+    private String getJavaName(String xmlName) {
+        String[] parts = xmlName.split("_");
+        StringBuilder javaName = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                javaName.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            }
+        }
+        javaName.append("Activity.java");
+        return javaName.toString();
+    }
+
+    private void copyAndFilterJavaFiles(File source, File targetMain, StringBuilder logicStr, ArrayList<String> activityLayouts) throws IOException {
+        if (source.isDirectory()) {
+            if (!targetMain.exists()) targetMain.mkdirs();
+
+            String[] children = source.list();
+            if (children != null) {
+                for (String child : children) {
+                    copyAndFilterJavaFiles(new File(source, child), new File(targetMain, child), logicStr, activityLayouts);
+                }
+            }
+        } else {
+            boolean isActivityMatch = false;
+            String javaName = "";
+            for (String layout : activityLayouts) {
+                if (source.getName().equals(getJavaName(layout))) {
+                    isActivityMatch = true;
+                    javaName = getJavaName(layout);
+                    break;
+                }
+            }
+
+            if (isActivityMatch) {
+                String javaContent = FileUtil.readFile(source.getAbsolutePath());
+                // Escape quotes and newlines for JSON string
+                String escapedContent = javaContent.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+                
+                String assdJson = "{\"color\":-12435108,\"id\":\"11\",\"nextBlock\":-1,\"opCode\":\"addCustomVariable\",\"parameters\":[\"" + escapedContent + "\"],\"spec\":\"Custom Variable Block: add variable %s\",\"subStack1\":-1,\"subStack2\":-1,\"type\":\" \",\"typeName\":\"\"}\n";
+                
+                logicStr.append("@").append(javaName).append("_onCreate_initializeLogic\n");
+                logicStr.append(assdJson);
+            } else {
+                FileUtil.copyFile(source.getAbsolutePath(), targetMain.getAbsolutePath());
+            }
+        }
+    }
+
     private void extractZipFromUri(Activity context, Uri uri, String destFolder) throws IOException {
         InputStream is = context.getContentResolver().openInputStream(uri);
         if (is == null) throw new IOException("Cannot open URI");
@@ -249,7 +372,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         zis.close();
     }
 
-    // Helper: Find 'src/main' accurately even if nested inside extra folders in ZIP
     private File findSrcMainFolder(File root) {
         if (root.getName().equals("main") && root.getParentFile().getName().equals("src")) {
             return root;
@@ -263,19 +385,21 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         return null;
     }
 
-    // Helper: Extract implementations from Gradle via Regex
     private ArrayList<HashMap<String, Object>> extractDependencies(String gradleConfig) {
         ArrayList<HashMap<String, Object>> libs = new ArrayList<>();
         Pattern pattern = Pattern.compile("(implementation|api)\\s+['\"]([^'\"]+)['\"]");
         Matcher matcher = pattern.matcher(gradleConfig);
         while (matcher.find()) {
             String fullDep = matcher.group(2);
-            // Format: group:artifact:version
             HashMap<String, Object> libMap = new HashMap<>();
-            String name = fullDep.replace(":", "-"); // Make safe local lib name
+            String name = fullDep.replace(":", "-"); 
             libMap.put("name", name);
             libMap.put("dependency", fullDep);
-            libMap.put("enabled", true);
+            libMap.put("dexPath", "");
+            libMap.put("jarPath", "");
+            libMap.put("manifestPath", "");
+            libMap.put("resPath", "");
+            libMap.put("packageName", "");
             libs.add(libMap);
         }
         return libs;
