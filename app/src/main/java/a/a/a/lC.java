@@ -226,7 +226,6 @@ public class lC {
     }
 
     private static class IntegerComparator implements Comparator<Integer> {
-
         @Override
         public int compare(Integer first, Integer second) {
             return first.compareTo(second);

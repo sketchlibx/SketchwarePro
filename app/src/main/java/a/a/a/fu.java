@@ -46,7 +46,7 @@ public class fu extends qA implements View.OnClickListener {
             for (ProjectResourceBean image : importedImages) {
                 newImportedImages.add(new ProjectResourceBean(ProjectResourceBean.PROJECT_RES_TYPE_FILE, image.resName, image.resFullName));
             }
-            if (!newImportedImages.isEmpty()) {
+            if (!newImportedImages.isEmpty() && getActivity() instanceof ManageImageActivity) {
                 ((ManageImageActivity) requireActivity()).m().a(newImportedImages);
                 ((ManageImageActivity) requireActivity()).f(0);
             }
@@ -63,28 +63,38 @@ public class fu extends qA implements View.OnClickListener {
 
     public void refreshData() {
         collectionImages = Op.g().f();
-        adapter.notifyDataSetChanged();
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
         updateGuideVisibility();
     }
 
     public void unselectAll() {
-        for (ProjectResourceBean image : collectionImages) {
-            image.isSelected = false;
+        if (collectionImages != null) {
+            for (ProjectResourceBean image : collectionImages) {
+                image.isSelected = false;
+            }
+            if (adapter != null) {
+                adapter.notifyDataSetChanged();
+            }
         }
-        adapter.notifyDataSetChanged();
     }
 
     public boolean isSelecting() {
-        for (ProjectResourceBean image : collectionImages) {
-            if (image.isSelected) return true;
+        if (collectionImages != null) {
+            for (ProjectResourceBean image : collectionImages) {
+                if (image.isSelected) return true;
+            }
         }
         return false;
     }
 
     public void updateGuideVisibility() {
-        boolean isEmpty = collectionImages.isEmpty();
-        binding.tvGuide.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
-        binding.imageList.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+        if (collectionImages != null && binding != null) {
+            boolean isEmpty = collectionImages.isEmpty();
+            binding.tvGuide.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+            binding.imageList.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+        }
     }
 
     public void importImages() {
@@ -94,14 +104,13 @@ public class fu extends qA implements View.OnClickListener {
                 selectedCollections.add(new ProjectResourceBean(ProjectResourceBean.PROJECT_RES_TYPE_FILE, image.resName, wq.a() + File.separator + "image" + File.separator + "data" + File.separator + image.resFullName));
             }
         }
-        if (!selectedCollections.isEmpty()) {
+        if (!selectedCollections.isEmpty() && getActivity() instanceof ManageImageActivity) {
             Intent intent = new Intent(requireActivity(), ManageImageImportActivity.class);
             intent.putParcelableArrayListExtra("project_images", ((ManageImageActivity) requireActivity()).m().d());
             intent.putParcelableArrayListExtra("selected_collections", selectedCollections);
             openImageImportDetails.launch(intent);
         }
         unselectAll();
-        adapter.notifyDataSetChanged();
     }
 
     private void onItemSelected() {
@@ -149,6 +158,7 @@ public class fu extends qA implements View.OnClickListener {
         binding = FrManageImageListBinding.inflate(inflater, container, false);
         binding.imageList.setHasFixedSize(true);
         binding.imageList.setLayoutManager(new GridLayoutManager(requireActivity(), ManageImageActivity.getImageGridColumnCount(requireContext())));
+        collectionImages = new ArrayList<>();
         adapter = new Adapter();
         binding.imageList.setAdapter(adapter);
         binding.tvGuide.setText(R.string.design_manager_image_description_guide_add_image);
@@ -160,7 +170,7 @@ public class fu extends qA implements View.OnClickListener {
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         outState.putString("sc_id", sc_id);
         super.onSaveInstanceState(outState);
     }
@@ -170,14 +180,24 @@ public class fu extends qA implements View.OnClickListener {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ProjectResourceBean image = collectionImages.get(position);
+
+            // 🚀 BUG FIX: Clear old image properly to prevent Recycling Glitch
+            Glide.with(requireActivity()).clear(holder.binding.img);
+            holder.binding.img.setImageDrawable(null);
+
             holder.binding.chkSelect.setVisibility(View.VISIBLE);
             holder.binding.imgNinePatch.setVisibility(image.isNinePatch() ? View.VISIBLE : View.GONE);
+            
+            // 🚀 UI UPGRADE: Dim image when selected
+            holder.binding.img.setAlpha(image.isSelected ? 0.5f : 1.0f);
+
             Glide.with(requireActivity())
                     .asBitmap()
                     .load(wq.a() + File.separator + "image" + File.separator + "data" + File.separator + image.resFullName)
                     .centerCrop()
                     .error(R.drawable.ic_remove_grey600_24dp)
                     .into(new BitmapImageViewTarget(holder.binding.img).getView());
+                    
             holder.binding.tvImageName.setText(image.resName);
             holder.binding.chkSelect.setChecked(image.isSelected);
         }
@@ -200,6 +220,7 @@ public class fu extends qA implements View.OnClickListener {
                 super(binding.getRoot());
                 this.binding = binding;
                 binding.chkSelect.setVisibility(View.VISIBLE);
+                
                 binding.img.setOnClickListener(v -> {
                     binding.chkSelect.setChecked(!binding.chkSelect.isChecked());
                     collectionImages.get(getLayoutPosition()).isSelected = binding.chkSelect.isChecked();

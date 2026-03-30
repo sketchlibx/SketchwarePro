@@ -40,7 +40,6 @@ public class EventsHandler {
         array.add("Import");
         array.add("initializeLogic");
         array.add("onActivityResult");
-        // 🚀 ADDED: onRequestPermissionsResult to the core activity events list
         array.add("onRequestPermissionsResult");
         array.add("onBackPressed");
         array.add("onPostCreate");
@@ -251,7 +250,7 @@ public class EventsHandler {
         return switch (name) {
             case "Import" -> "add custom imports";
             case "onActivityResult" -> "onActivityResult";
-            case "onRequestPermissionsResult" -> "onRequestPermissionsResult"; // 🚀 Added description
+            case "onRequestPermissionsResult" -> "onRequestPermissionsResult";
             case "initializeLogic" -> "initializeLogic";
             case "onSwipeRefreshLayout" -> "On SwipeRefreshLayout swipe";
             case " onLongClick" -> "onLongClick";
@@ -299,7 +298,7 @@ public class EventsHandler {
                     "//Ul5kmZqmO867OV0QTGOpjwX7MXmgzxzQBSZTf0Y16PnDXkhLsZfvF\r\n" +
                             param + "\r\n" +
                             "//3b5IqsVG57gNqLi7FBO2MeOW6iI7tOustUGwcA7HKXm0o7lovZ";
-            case "onActivityResult", "initializeLogic", "onRequestPermissionsResult" -> ""; // 🚀 Added here to let Jx handle the signature mapping
+            case "onActivityResult", "initializeLogic", "onRequestPermissionsResult" -> ""; 
             case "onSwipeRefreshLayout" ->
                     "@Override\r\n" +
                             "public void onRefresh() {\n" +
@@ -368,8 +367,7 @@ public class EventsHandler {
             case "Import", "initializeLogic", "onSwipeRefreshLayout", " onLongClick",
                  "onPreExecute" -> "";
             case "onActivityResult" -> "%d.requestCode %d.resultCode %m.intent";
-            // 🚀 ADDED: Block signature mapping for the variables passed in onRequestPermissionsResult
-            case "onRequestPermissionsResult" -> "%d.requestCode %m.permissions.data %m.grantResults.data";
+            case "onRequestPermissionsResult" -> "%d.requestCode"; 
             case "onTabLayoutNewTabAdded", "onProgressUpdate" -> "%d";
             case "doInBackground", "onPostExecute" -> "%s";
             default -> {
@@ -406,9 +404,8 @@ public class EventsHandler {
             case "Import" -> "create new import";
             case "onActivityResult" ->
                     "OnActivityResult %d.requestCode %d.resultCode %m.intent.data";
-            // 🚀 ADDED: Human readable spec description for Blocks UI
             case "onRequestPermissionsResult" ->
-                    "onRequestPermissionsResult %d.requestCode %m.permissions %m.grantResults";
+                    "onRequestPermissionsResult %d.requestCode";
             case "initializeLogic" -> "initializeLogic";
             case "onSwipeRefreshLayout" -> "when " + name + " refresh";
             case " onLongClick" -> "when " + name + " long clicked";

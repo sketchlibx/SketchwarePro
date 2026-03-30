@@ -14,6 +14,9 @@ import com.besome.sketch.beans.ViewBean;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.Gson;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -97,11 +100,38 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             String newScId = lC.b(); 
             publishProgress("Setting up project " + newScId + "...");
 
+            File asSrcMain = findSrcMainFolder(new File(cacheDir));
+            if (asSrcMain == null) {
+                errorMessage = "Invalid AS Project: 'src/main' folder not found.";
+                return false;
+            }
+
+            String pkgName = "com.imported.project";
+            String appName = "Imported App";
+            
+            File manifestFile = new File(asSrcMain, "AndroidManifest.xml");
+            if (manifestFile.exists()) {
+                String manifestContent = FileUtil.readFile(manifestFile.getAbsolutePath());
+                Matcher pkgMatcher = Pattern.compile("package=\"([^\"]+)\"").matcher(manifestContent);
+                if (pkgMatcher.find()) {
+                    pkgName = pkgMatcher.group(1);
+                }
+            }
+
+            File stringsFile = new File(asSrcMain, "res/values/strings.xml");
+            if (stringsFile.exists()) {
+                String stringsContent = FileUtil.readFile(stringsFile.getAbsolutePath());
+                Matcher nameMatcher = Pattern.compile("<string name=\"app_name\">([^<]+)</string>").matcher(stringsContent);
+                if (nameMatcher.find()) {
+                    appName = nameMatcher.group(1);
+                }
+            }
+
             HashMap<String, Object> projMap = new HashMap<>();
             projMap.put("sc_id", newScId);
-            projMap.put("my_ws_name", "Imported_AS_Project");
-            projMap.put("my_app_name", "Imported App");
-            projMap.put("my_sc_pkg_name", "com.imported.project");
+            projMap.put("my_ws_name", "Imported_" + appName.replaceAll("[^a-zA-Z0-9]", ""));
+            projMap.put("my_app_name", appName);
+            projMap.put("my_sc_pkg_name", pkgName);
             projMap.put("sc_ver_code", "1");
             projMap.put("sc_ver_name", "1.0");
             projMap.put("color_primary", -10455380);
@@ -110,6 +140,9 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             projMap.put("color_control_highlight", -2497793);
             projMap.put("color_control_normal", -10455380);
             projMap.put("my_sc_reg_dt", new nB().a("yyyyMMddHHmmss"));
+            projMap.put("sketchware_ver", 158);
+            projMap.put("isIconAdaptive", false);
+            projMap.put("custom_icon", false);
             lC.a(newScId, projMap);
 
             String dataPath = wq.b(newScId);
@@ -119,16 +152,10 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             FileUtil.makeDir(filesPath + File.separator + "assets");
             FileUtil.makeDir(filesPath + File.separator + "app-icon");
 
-            File asSrcMain = findSrcMainFolder(new File(cacheDir));
-            if (asSrcMain == null) {
-                errorMessage = "Invalid AS Project: 'src/main' folder not found.";
-                return false;
-            }
-
             Gson gson = new Gson();
             oB fileEncryptor = new oB();
 
-            publishProgress("Parsing & Encrypting XML Layouts...");
+            publishProgress("Parsing XML Layouts...");
             File layoutDir = new File(asSrcMain, "res/layout");
             
             StringBuilder fileStr = new StringBuilder();
@@ -168,6 +195,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                                 logicStr.append("@").append(javaName).append("_var\n");
                                 logicStr.append("@").append(javaName).append("_components\n");
                                 logicStr.append("@").append(javaName).append("_events\n");
+                                logicStr.append("{\"eventName\":\"initializeLogic\",\"eventType\":3,\"targetId\":\"initializeLogic\",\"targetType\":0}\n");
                             } else {
                                 customViewLayouts.add(fileName);
                             }
@@ -181,7 +209,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                 fileStr.append("{\"fileName\":\"").append(cv).append("\",\"fileType\":1,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
             }
 
-            publishProgress("Migrating Java/Kotlin source & Logic...");
+            publishProgress("Migrating Java Source...");
             File javaDir = new File(asSrcMain, "java");
             if (!javaDir.exists()) javaDir = new File(asSrcMain, "kotlin");
             
@@ -194,7 +222,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             fileEncryptor.a(dataPath + File.separator + "file", fileEncryptor.d(fileStr.toString()));
             fileEncryptor.a(dataPath + File.separator + "logic", fileEncryptor.d(logicStr.toString()));
 
-            publishProgress("Processing Resources & Assets...");
+            publishProgress("Processing Resources...");
             File resDir = new File(asSrcMain, "res");
             StringBuilder resourceStr = new StringBuilder();
             resourceStr.append("@images\n");
@@ -243,8 +271,40 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             resourceStr.append("@sounds\n@fonts\n");
             fileEncryptor.a(dataPath + File.separator + "resource", fileEncryptor.d(resourceStr.toString()));
 
-            publishProgress("Setting up Library...");
-            String libraryStr = "@firebaseDB\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":0,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n" +
+            publishProgress("Setting up Firebase & Library...");
+            
+            String fbDbUrl = "";
+            String fbAppId = "";
+            String fbApiKey = "";
+            String fbProjectId = "";
+            boolean useFb = false;
+            
+            File googleServicesFile = new File(asSrcMain.getParentFile().getParentFile(), "app/google-services.json");
+            if (googleServicesFile.exists()) {
+                useFb = true;
+                try {
+                    JSONObject gsJson = new JSONObject(FileUtil.readFile(googleServicesFile.getAbsolutePath()));
+                    JSONObject projectInfo = gsJson.getJSONObject("project_info");
+                    fbProjectId = projectInfo.optString("project_id", "");
+                    fbDbUrl = projectInfo.optString("firebase_url", "");
+                    
+                    JSONArray clients = gsJson.getJSONArray("client");
+                    if (clients.length() > 0) {
+                        JSONObject client0 = clients.getJSONObject(0);
+                        fbAppId = client0.getJSONObject("client_info").optString("mobilesdk_app_id", "");
+                        JSONArray apiKeys = client0.getJSONArray("api_key");
+                        if (apiKeys.length() > 0) {
+                            fbApiKey = apiKeys.getJSONObject(0).optString("current_key", "");
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            
+            String firebaseDbData = "{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"" + fbDbUrl.replace("https://", "") + "\",\"libType\":0,\"reserved1\":\"" + fbAppId + "\",\"reserved2\":\"" + fbApiKey + "\",\"reserved3\":\"" + fbProjectId + ".appspot.com\",\"testDevices\":[],\"useYn\":\"" + (useFb ? "Y" : "N") + "\"}";
+
+            String libraryStr = "@firebaseDB\n" + firebaseDbData + "\n" +
                     "@compat\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{\"material3\":true,\"dynamic_colors\":true,\"theme\":\"DayNight\"},\"data\":\"\",\"libType\":1,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"Y\"}\n" +
                     "@admob\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":2,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n" +
                     "@googleMap\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":3,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n";
@@ -254,23 +314,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             if (assetsDir.exists()) {
                 FileUtil.copyDirectory(assetsDir, new File(filesPath + File.separator + "assets"));
             }
-
-            publishProgress("Scanning Dependencies...");
-            File buildGradle = new File(asSrcMain.getParentFile().getParentFile(), "build.gradle");
-            if (!buildGradle.exists()) buildGradle = new File(asSrcMain.getParentFile().getParentFile(), "build.gradle.kts");
-            
-            if (buildGradle.exists()) {
-                String gradleContent = FileUtil.readFile(buildGradle.getAbsolutePath());
-                ArrayList<HashMap<String, Object>> extractedLibs = extractDependencies(gradleContent);
-                if (!extractedLibs.isEmpty()) {
-                    String targetLocalLibPath = wq.b(newScId) + File.separator + "local_library";
-                    FileUtil.writeFile(targetLocalLibPath, new Gson().toJson(extractedLibs));
-                }
-            }
-
-            jC.a(newScId).a();
-            jC.b(newScId).a();
-            jC.d(newScId).a();
 
             FileUtil.deleteFile(cacheDir);
 
@@ -311,17 +354,15 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         return javaName.toString();
     }
 
-    private void copyAndFilterJavaFiles(File source, File targetMain, StringBuilder logicStr, ArrayList<String> activityLayouts) throws IOException {
+    private void copyAndFilterJavaFiles(File source, File targetMainDir, StringBuilder logicStr, ArrayList<String> activityLayouts) throws IOException {
         if (source.isDirectory()) {
-            if (!targetMain.exists()) targetMain.mkdirs();
-
             String[] children = source.list();
             if (children != null) {
                 for (String child : children) {
-                    copyAndFilterJavaFiles(new File(source, child), new File(targetMain, child), logicStr, activityLayouts);
+                    copyAndFilterJavaFiles(new File(source, child), targetMainDir, logicStr, activityLayouts);
                 }
             }
-        } else {
+        } else if (source.getName().endsWith(".java") || source.getName().endsWith(".kt")) {
             boolean isActivityMatch = false;
             String javaName = "";
             for (String layout : activityLayouts) {
@@ -334,15 +375,18 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
 
             if (isActivityMatch) {
                 String javaContent = FileUtil.readFile(source.getAbsolutePath());
-                // Escape quotes and newlines for JSON string
-                String escapedContent = javaContent.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+                // Strip package and import lines to keep block clean
+                javaContent = javaContent.replaceAll("package\\s+[^;]+;", "").replaceAll("import\\s+[^;]+;", "").trim();
                 
+                String escapedContent = javaContent.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
                 String assdJson = "{\"color\":-12435108,\"id\":\"11\",\"nextBlock\":-1,\"opCode\":\"addCustomVariable\",\"parameters\":[\"" + escapedContent + "\"],\"spec\":\"Custom Variable Block: add variable %s\",\"subStack1\":-1,\"subStack2\":-1,\"type\":\" \",\"typeName\":\"\"}\n";
                 
                 logicStr.append("@").append(javaName).append("_onCreate_initializeLogic\n");
                 logicStr.append(assdJson);
             } else {
-                FileUtil.copyFile(source.getAbsolutePath(), targetMain.getAbsolutePath());
+                if (!targetMainDir.exists()) targetMainDir.mkdirs();
+                File targetFile = new File(targetMainDir, source.getName());
+                FileUtil.copyFile(source.getAbsolutePath(), targetFile.getAbsolutePath());
             }
         }
     }
@@ -383,25 +427,5 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             }
         }
         return null;
-    }
-
-    private ArrayList<HashMap<String, Object>> extractDependencies(String gradleConfig) {
-        ArrayList<HashMap<String, Object>> libs = new ArrayList<>();
-        Pattern pattern = Pattern.compile("(implementation|api)\\s+['\"]([^'\"]+)['\"]");
-        Matcher matcher = pattern.matcher(gradleConfig);
-        while (matcher.find()) {
-            String fullDep = matcher.group(2);
-            HashMap<String, Object> libMap = new HashMap<>();
-            String name = fullDep.replace(":", "-"); 
-            libMap.put("name", name);
-            libMap.put("dependency", fullDep);
-            libMap.put("dexPath", "");
-            libMap.put("jarPath", "");
-            libMap.put("manifestPath", "");
-            libMap.put("resPath", "");
-            libMap.put("packageName", "");
-            libs.add(libMap);
-        }
-        return libs;
     }
 }

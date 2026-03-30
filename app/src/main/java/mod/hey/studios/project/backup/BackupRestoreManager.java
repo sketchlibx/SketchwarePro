@@ -1,6 +1,7 @@
 package mod.hey.studios.project.backup;
 
 import android.app.Activity;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.view.LayoutInflater;
 import android.widget.CheckBox;
@@ -33,10 +34,7 @@ import pro.sketchware.utility.SketchwareUtil;
 public class BackupRestoreManager {
 
     private final Activity act;
-
-    // Needed to refresh the project list after restoring
     private ProjectsFragment projectsFragment;
-
     private HashMap<Integer, Boolean> backupDialogStates;
 
     public BackupRestoreManager(Activity act) {
@@ -83,11 +81,9 @@ public class BackupRestoreManager {
                     case localLibrariesTag:
                         index = 0;
                         break;
-
                     case customBlocksTag:
                         index = 1;
                         break;
-
                     default:
                         return;
                 }
@@ -123,12 +119,10 @@ public class BackupRestoreManager {
     }
 
     private void doBackup(String sc_id, String project_name) {
-        new BackupAsyncTask(new WeakReference<>(act), sc_id, project_name, backupDialogStates)
-                .execute("");
+        new BackupAsyncTask(new WeakReference<>(act), sc_id, project_name, backupDialogStates).execute("");
     }
 
-    /*** Restore ***/
-
+    /*** Restore SWB ***/
     public void restore() {
         FilePickerOptions options = new FilePickerOptions();
         options.setMultipleSelection(true);
@@ -167,8 +161,27 @@ public class BackupRestoreManager {
         new RestoreAsyncTask(new WeakReference<>(act), file, restoreLocalLibs, projectsFragment).execute("");
     }
 
-    private static class BackupAsyncTask extends AsyncTask<String, Integer, String> {
+    /*** Import AS Project (ZIP) using FilePicker ***/
+    public void importASProject() {
+        FilePickerOptions options = new FilePickerOptions();
+        options.setMultipleSelection(false);
+        options.setExtensions(new String[]{"zip"});
+        options.setTitle("Select Android Studio Project (.zip)");
 
+        FilePickerCallback callback = new FilePickerCallback() {
+            @Override
+            public void onFilesSelected(@NotNull List<? extends File> files) {
+                if (!files.isEmpty()) {
+                    String zipPath = files.get(0).getAbsolutePath();
+                    new mod.sketchlibx.importer.ASProjectImporter(act, Uri.fromFile(new File(zipPath)), projectsFragment).execute();
+                }
+            }
+        };
+
+        new FilePickerDialogFragment(options, callback).show(projectsFragment.getChildFragmentManager(), "as_zip_picker");
+    }
+
+    private static class BackupAsyncTask extends AsyncTask<String, Integer, String> {
         private final String sc_id;
         private final String project_name;
         private final HashMap<Integer, Boolean> options;
@@ -200,16 +213,13 @@ public class BackupRestoreManager {
             bm = new BackupFactory(sc_id);
             bm.setBackupLocalLibs(options.get(0));
             bm.setBackupCustomBlocks(options.get(1));
-
             bm.backup(activityWeakReference.get(), project_name);
-
             return "";
         }
 
         @Override
         protected void onPostExecute(String _result) {
             dlg.dismiss();
-
             if (bm.getOutFile() != null) {
                 SketchwareUtil.toast("Successfully created backup to: " + bm.getOutFile().getAbsolutePath());
             } else {
@@ -219,7 +229,6 @@ public class BackupRestoreManager {
     }
 
     private static class RestoreAsyncTask extends AsyncTask<String, Integer, String> {
-
         private final WeakReference<Activity> activityWeakReference;
         private final String file;
         private final ProjectsFragment projectsFragment;
@@ -251,21 +260,18 @@ public class BackupRestoreManager {
         protected String doInBackground(String... params) {
             bm = new BackupFactory(lC.b());
             bm.setBackupLocalLibs(restoreLocalLibs);
-
             try {
                 bm.restore(new File(file));
             } catch (Exception e) {
                 bm.error = e.getMessage();
                 error = true;
             }
-
             return "";
         }
 
         @Override
         protected void onPostExecute(String _result) {
             dlg.dismiss();
-
             if (!bm.isRestoreSuccess() || error) {
                 SketchwareUtil.toastError("Couldn't restore: " + bm.error, Toast.LENGTH_LONG);
             } else if (projectsFragment != null) {

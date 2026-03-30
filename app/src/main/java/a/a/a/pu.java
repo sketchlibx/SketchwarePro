@@ -67,6 +67,7 @@ public class pu extends qA {
     private FloatingActionButton fab;
     private String projectImagesDirectory = "";
     private Adapter adapter = null;
+    
     private final ActivityResultLauncher<Intent> openImportIconActivity = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == Activity.RESULT_OK) {
             var data = result.getData();
@@ -86,6 +87,7 @@ public class pu extends qA {
             bB.a(requireActivity(), getString(R.string.design_manager_message_add_complete), bB.TOAST_NORMAL).show();
         }
     });
+    
     private final ActivityResultLauncher<Intent> showAddImageDialog = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == Activity.RESULT_OK) {
             assert result.getData() != null;
@@ -98,10 +100,13 @@ public class pu extends qA {
             images.addAll(addedImages);
             adapter.notifyItemRangeInserted(images.size() - addedImages.size(), addedImages.size());
             updateGuideVisibility();
-            ((ManageImageActivity) requireActivity()).l().refreshData();
+            if (requireActivity() instanceof ManageImageActivity) {
+                ((ManageImageActivity) requireActivity()).l().refreshData();
+            }
             bB.a(requireActivity(), getString(R.string.design_manager_message_add_complete), bB.TOAST_NORMAL).show();
         }
     });
+    
     private final ActivityResultLauncher<Intent> showImageDetailsDialog = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == Activity.RESULT_OK) {
             assert result.getData() != null;
@@ -120,7 +125,9 @@ public class pu extends qA {
                 }
             }
             updateGuideVisibility();
-            ((ManageImageActivity) requireActivity()).l().refreshData();
+            if (requireActivity() instanceof ManageImageActivity) {
+                ((ManageImageActivity) requireActivity()).l().refreshData();
+            }
             bB.a(requireActivity(), getString(R.string.design_manager_message_edit_complete), bB.TOAST_NORMAL).show();
         }
     });
@@ -179,8 +186,6 @@ public class pu extends qA {
     }
 
     public void saveImages() {
-
-
         Path svgDir = Paths.get(fpu.getPathSvg(sc_id));
         try {
             if (!Files.exists(svgDir)) {
@@ -200,11 +205,9 @@ public class pu extends qA {
                         path = image.resFullName;
                     }
 
-
                     String str = projectImagesDirectory + File.separator + image.resName;
                     Log.d("svg", "full name : " + image.resFullName);
                     if (image.resFullName.endsWith(".svg")) {
-                        // convert the svg to vectors
                         String svgPath = fpu.getSvgFullPath(sc_id, image.resName);
                         copyFile(path, svgPath);
                         String colorHex = (String) colorMap.get(index).get("colorHex");
@@ -222,8 +225,6 @@ public class pu extends qA {
         for (int i = 0; i < images.size(); i++) {
             ProjectResourceBean image = images.get(i);
             if (image.isNew || image.isEdited) {
-
-                // Determine the correct file extension based on image type
                 String fileExtension;
                 if (image.isNinePatch()) {
                     fileExtension = ".9.png";
@@ -233,7 +234,6 @@ public class pu extends qA {
                     fileExtension = ".png";
                 }
 
-                // Set the new ProjectResourceBean with the correct file extension
                 images.set(i, new ProjectResourceBean(
                         ProjectResourceBean.PROJECT_RES_TYPE_FILE,
                         image.resName,
@@ -243,10 +243,6 @@ public class pu extends qA {
         }
         jC.d(sc_id).b(images);
         jC.d(sc_id).y();
-
-        // This method is replaces not exist images to default_image, I removed it because it changes vector images to default_images
-        // jC.a(sc_id).b(jC.d(sc_id));
-
         jC.a(sc_id).k();
     }
 
@@ -286,7 +282,6 @@ public class pu extends qA {
             projectImagesDirectory = savedInstanceState.getString("dir_path");
             images = savedInstanceState.getParcelableArrayList("images");
         }
-        // mkdirs
         new oB().f(projectImagesDirectory);
         adapter.notifyDataSetChanged();
         updateGuideVisibility();
@@ -357,7 +352,7 @@ public class pu extends qA {
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         outState.putString("sc_id", sc_id);
         outState.putString("dir_path", projectImagesDirectory);
         outState.putParcelableArrayList("images", images);
@@ -444,7 +439,6 @@ public class pu extends qA {
         colorItem1.put("color", color);
 
         colorMap.put(forPosition, colorItem1);
-        Log.d("color filter", "new color filter item at " + forPosition + ": " + colorHex + " " + color);
     }
 
     private void addImages(ArrayList<ProjectResourceBean> arrayList) {
@@ -459,13 +453,9 @@ public class pu extends qA {
                     public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                         super.onScrolled(recyclerView, dx, dy);
                         if (dy > 2) {
-                            if (fab.isEnabled()) {
-                                fab.hide();
-                            }
+                            if (fab.isEnabled()) fab.hide();
                         } else if (dy < -2) {
-                            if (fab.isEnabled()) {
-                                fab.show();
-                            }
+                            if (fab.isEnabled()) fab.show();
                         }
                     }
                 });
@@ -476,19 +466,23 @@ public class pu extends qA {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ProjectResourceBean image = images.get(position);
 
+            // 🚀 BUG FIX: Clear old views properly to stop Recycling Glitch
+            Glide.with(requireActivity()).clear(holder.binding.img);
+            holder.binding.img.setImageDrawable(null);
+            holder.binding.img.clearColorFilter();
+
             holder.binding.deleteImgContainer.setVisibility(isSelecting ? View.VISIBLE : View.GONE);
             holder.binding.imgNinePatch.setVisibility(image.isNinePatch() ? View.VISIBLE : View.GONE);
-            holder.binding.imgDelete.setImageResource(image.isSelected ? R.drawable.ic_checkmark_green_48dp
-                    : R.drawable.ic_trashcan_white_48dp);
+            holder.binding.imgDelete.setImageResource(image.isSelected ? R.drawable.ic_checkmark_green_48dp : R.drawable.ic_trashcan_white_48dp);
             holder.binding.chkSelect.setChecked(image.isSelected);
             holder.binding.tvImageName.setText(image.resName);
 
+            // 🚀 UI UPGRADE: Dim image when selected for better visibility
+            holder.binding.img.setAlpha(image.isSelected ? 0.5f : 1.0f);
+
             if (colorMap.get(position) != null) {
                 int color = Objects.requireNonNullElse((int) colorMap.get(position).get("color"), 0xFFFFFFFF);
-                Log.d("Applying filter to " + position, String.valueOf(color));
                 holder.binding.img.setColorFilter(color, PorterDuff.Mode.SRC_IN);
-            } else {
-                holder.binding.img.clearColorFilter();
             }
 
             if (svgUtils == null) {
@@ -499,15 +493,12 @@ public class pu extends qA {
             if (image.resFullName.endsWith(".svg")) {
                 svgUtils.loadImage(holder.binding.img, image.isNew ? image.resFullName : String.join(File.separator, projectImagesDirectory, image.resFullName));
             } else if (image.resFullName.endsWith(".xml")) {
-                Log.d("loading converted vector: ", fpu.getSvgFullPath(sc_id, image.resName));
                 svgUtils.loadImage(holder.binding.img, image.isNew ? image.resFullName : fpu.getSvgFullPath(sc_id, image.resName));
             } else {
                 Glide.with(requireActivity())
                         .asBitmap()
-                        .load(image.savedPos == 0 ? projectImagesDirectory + File.separator + image.resFullName
-                                : images.get(position).resFullName)
+                        .load(image.savedPos == 0 ? projectImagesDirectory + File.separator + image.resFullName : images.get(position).resFullName)
                         .transform(new BitmapTransformation() {
-
                             final String ID = "my-transformation";
                             final byte[] ID_BYTES = ID.getBytes(StandardCharsets.UTF_8);
 
@@ -564,6 +555,7 @@ public class pu extends qA {
                     a(true);
                     binding.chkSelect.setChecked(!binding.chkSelect.isChecked());
                     images.get(getLayoutPosition()).isSelected = binding.chkSelect.isChecked();
+                    notifyItemChanged(getLayoutPosition());
                     return true;
                 });
             }

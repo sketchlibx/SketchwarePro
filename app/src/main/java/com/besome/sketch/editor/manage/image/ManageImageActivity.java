@@ -45,7 +45,9 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
     }
 
     public void f(int i) {
-        binding.viewPager.setCurrentItem(i);
+        if (binding != null && binding.viewPager != null) {
+            binding.viewPager.setCurrentItem(i, true);
+        }
     }
 
     public fu l() {
@@ -58,14 +60,15 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
 
     @Override
     public void onBackPressed() {
-        if (projectImagesFragment.isSelecting) {
+        if (projectImagesFragment != null && projectImagesFragment.isSelecting) {
             projectImagesFragment.a(false);
-        } else if (collectionImagesFragment.isSelecting()) {
+            showFabWithAnimation();
+        } else if (collectionImagesFragment != null && collectionImagesFragment.isSelecting()) {
             collectionImagesFragment.unselectAll();
             binding.layoutBtnImport.setVisibility(View.GONE);
         } else {
             k();
-            new Handler().postDelayed(() -> new SaveImagesAsyncTask(this).execute(), 500L);
+            new Handler().postDelayed(() -> new SaveImagesAsyncTask(this).execute(), 300L);
         }
     }
 
@@ -77,25 +80,35 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
 
         if (!super.isStoragePermissionGranted()) {
             finish();
+            return;
         }
 
         setSupportActionBar(binding.topAppBar);
-        binding.topAppBar.setTitle(R.string.design_actionbar_title_manager_image);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(R.string.design_actionbar_title_manager_image);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+
         binding.topAppBar.setNavigationOnClickListener(v -> {
             if (!mB.a()) {
                 onBackPressed();
             }
         });
+
         if (savedInstanceState == null) {
             sc_id = getIntent().getStringExtra("sc_id");
         } else {
             sc_id = savedInstanceState.getString("sc_id");
         }
 
-        binding.viewPager.setAdapter(new PagerAdapter(getSupportFragmentManager()));
+        PagerAdapter pagerAdapter = new PagerAdapter(getSupportFragmentManager());
+        binding.viewPager.setAdapter(pagerAdapter);
         binding.viewPager.setOffscreenPageLimit(2);
         binding.viewPager.addOnPageChangeListener(this);
         binding.tabLayout.setupWithViewPager(binding.viewPager);
+        
+        // Initial FAB state
+        binding.fab.show();
     }
 
     @Override
@@ -107,7 +120,7 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         outState.putString("sc_id", sc_id);
         super.onSaveInstanceState(outState);
     }
@@ -118,14 +131,35 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         binding.layoutBtnImport.setVisibility(View.GONE);
 
         if (position == 0) {
-            binding.fab.animate().translationY(0F).setDuration(200L).start();
-            binding.fab.show();
-            collectionImagesFragment.unselectAll();
+            // Project Images Tab
+            showFabWithAnimation();
+            if (collectionImagesFragment != null) {
+                collectionImagesFragment.unselectAll();
+            }
         } else {
-            binding.fab.animate().translationY(400F).setDuration(200L).start();
-            binding.fab.hide();
-            projectImagesFragment.a(false);
+            // Collection Images Tab
+            hideFabWithAnimation();
+            if (projectImagesFragment != null) {
+                projectImagesFragment.a(false);
+            }
         }
+    }
+
+    // Smooth FAB animations
+    private void showFabWithAnimation() {
+        binding.fab.setVisibility(View.VISIBLE);
+        binding.fab.animate().translationY(0F).alpha(1.0f).setDuration(200L).start();
+    }
+
+    private void hideFabWithAnimation() {
+        binding.fab.animate().translationY(200F).alpha(0.0f).setDuration(200L).withEndAction(() -> {
+            binding.fab.setVisibility(View.GONE);
+        }).start();
+    }
+
+    // Expose binding so Fragments (pu, fu) can easily access action buttons without findViewById
+    public ManageImageBinding getBinding() {
+        return binding;
     }
 
     private static class SaveImagesAsyncTask extends MA {
@@ -139,21 +173,29 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
 
         @Override
         public void a() {
-            var activity = this.activity.get();
-            activity.h();
-            activity.setResult(Activity.RESULT_OK);
-            activity.finish();
-            Op.g().d();
+            ManageImageActivity act = this.activity.get();
+            if (act != null && !act.isFinishing()) {
+                act.h();
+                act.setResult(Activity.RESULT_OK);
+                act.finish();
+                Op.g().d();
+            }
         }
 
         @Override
         public void b() {
-            activity.get().projectImagesFragment.saveImages();
+            ManageImageActivity act = this.activity.get();
+            if (act != null && act.projectImagesFragment != null) {
+                act.projectImagesFragment.saveImages();
+            }
         }
 
         @Override
         public void a(String str) {
-            activity.get().h();
+            ManageImageActivity act = this.activity.get();
+            if (act != null && !act.isFinishing()) {
+                act.h();
+            }
         }
     }
 
@@ -161,10 +203,11 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         private final String[] labels;
 
         public PagerAdapter(FragmentManager manager) {
-            super(manager);
-            labels = new String[2];
-            labels[0] = getString(R.string.design_manager_tab_title_this_project);
-            labels[1] = getString(R.string.design_manager_tab_title_my_collection);
+            super(manager, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
+            labels = new String[]{
+                    getString(R.string.design_manager_tab_title_this_project),
+                    getString(R.string.design_manager_tab_title_my_collection)
+            };
         }
 
         @Override
@@ -187,10 +230,11 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         @Override
         @NonNull
         public Fragment getItem(int position) {
-            if (position != 0) {
+            if (position == 0) {
+                return new pu();
+            } else {
                 return new fu();
             }
-            return new pu();
         }
 
         @Override

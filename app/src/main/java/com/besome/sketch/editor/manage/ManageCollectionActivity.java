@@ -17,6 +17,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -37,7 +38,7 @@ import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.BitmapImageViewTarget;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigationrail.NavigationRailView;
 
@@ -61,6 +62,7 @@ import mod.jbk.util.AudioMetadata;
 import mod.jbk.util.BlockUtil;
 import mod.jbk.util.SoundPlayingAdapter;
 import pro.sketchware.R;
+import pro.sketchware.utility.SketchwareUtil;
 
 public class ManageCollectionActivity extends BaseAppCompatActivity implements View.OnClickListener {
     private static final int REQUEST_CODE_ADD_IMAGE_DIALOG = 267;
@@ -86,9 +88,10 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     private ArrayList<BlockCollectionBean> blocks;
     private ArrayList<MoreBlockCollectionBean> moreBlocks;
     private int currentItemId = 1;
-    private TextView noItemsNote;
+    private LinearLayout noItemsLayout;
     private FloatingActionButton fab;
     private String sc_id;
+    private SearchView searchView;
 
     private void showAddImageDialog() {
         Intent intent = new Intent(getApplicationContext(), AddImageCollectionActivity.class);
@@ -132,6 +135,9 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
         if (selectingToBeDeletedItems) {
             collectionAdapter.stopPlayback();
             actionButtonGroup.setVisibility(View.VISIBLE);
+            if (searchView != null && !searchView.isIconified()) {
+                searchView.onActionViewCollapsed(); // Close search when entering delete mode
+            }
         } else {
             actionButtonGroup.setVisibility(View.GONE);
             if (currentItemId == 3 || currentItemId == 4) {
@@ -153,7 +159,7 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     }
 
     private void openImageDetails(int position) {
-        ProjectResourceBean editTarget = images.get(position);
+        ProjectResourceBean editTarget = (ProjectResourceBean) collectionAdapter.getItem(position);
         Intent intent = new Intent(getApplicationContext(), AddImageCollectionActivity.class);
         intent.putParcelableArrayListExtra("images", images);
         intent.putExtra("sc_id", sc_id);
@@ -162,7 +168,7 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     }
 
     private void openSoundDetails(int position) {
-        ProjectResourceBean editTarget = sounds.get(position);
+        ProjectResourceBean editTarget = (ProjectResourceBean) collectionAdapter.getItem(position);
         collectionAdapter.stopPlayback();
         Intent intent = new Intent(getApplicationContext(), AddSoundCollectionActivity.class);
         intent.putParcelableArrayListExtra("sounds", sounds);
@@ -172,7 +178,7 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     }
 
     private void openFontDetails(int position) {
-        ProjectResourceBean editTarget = fonts.get(position);
+        ProjectResourceBean editTarget = (ProjectResourceBean) collectionAdapter.getItem(position);
         Intent intent = new Intent(getApplicationContext(), AddFontCollectionActivity.class);
         intent.putParcelableArrayListExtra("fonts", fonts);
         intent.putExtra("sc_id", sc_id);
@@ -181,24 +187,24 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     }
 
     private void openWidgetDetails(int position) {
-        String widgetName = Rp.h().g().get(position);
+        WidgetCollectionBean bean = (WidgetCollectionBean) collectionAdapter.getItem(position);
         Intent intent = new Intent(getApplicationContext(), ShowWidgetCollectionActivity.class);
         intent.putExtra("sc_id", sc_id);
-        intent.putExtra("widget_name", widgetName);
+        intent.putExtra("widget_name", bean.name);
         startActivityForResult(intent, REQUEST_CODE_SHOW_WIDGET_DETAILS);
     }
 
     private void openBlockDetails(int position) {
-        String blockName = Mp.h().g().get(position);
+        BlockCollectionBean bean = (BlockCollectionBean) collectionAdapter.getItem(position);
         Intent intent = new Intent(getApplicationContext(), ShowBlockCollectionActivity.class);
-        intent.putExtra("block_name", blockName);
+        intent.putExtra("block_name", bean.name);
         startActivityForResult(intent, REQUEST_CODE_SHOW_BLOCK_DETAILS);
     }
 
     private void openMoreBlockDetails(int position) {
-        String blockName = Pp.h().g().get(position);
+        MoreBlockCollectionBean bean = (MoreBlockCollectionBean) collectionAdapter.getItem(position);
         Intent intent = new Intent(getApplicationContext(), ShowMoreBlockCollectionActivity.class);
-        intent.putExtra("block_name", blockName);
+        intent.putExtra("block_name", bean.name);
         startActivityForResult(intent, REQUEST_CODE_SHOW_MORE_BLOCK_DETAILS);
     }
 
@@ -225,6 +231,16 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
                 if (currentItemId == 1) {
                     collectionAdapter.stopPlayback();
                 }
+                
+                if (searchView != null && !searchView.isIconified()) {
+                    searchView.setQuery("", false);
+                    searchView.onActionViewCollapsed();
+                }
+                
+                if (selectingToBeDeletedItems) {
+                    changeDeletingItemsState(false);
+                }
+
                 currentItemId = item;
                 collection.removeAllViews();
                 collectionAdapter.currentViewType = currentItemId;
@@ -248,10 +264,27 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
                         fab.show();
                     }
                 }
-
-                collectionAdapter.notifyDataSetChanged();
             }
         }
+    }
+
+    private void confirmDeletion() {
+        int count = 0;
+        for (SelectableBean bean : collectionAdapter.currentCollectionTypeItems) {
+            if (bean.isSelected) count++;
+        }
+        
+        if (count == 0) {
+            SketchwareUtil.toast("Please select items to delete");
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(this)
+            .setTitle("Confirm Deletion")
+            .setMessage("Are you sure you want to delete " + count + " selected item(s)?")
+            .setPositiveButton(R.string.common_word_delete, (dialog, which) -> deleteSelectedToBeDeletedItems())
+            .setNegativeButton(R.string.common_word_cancel, null)
+            .show();
     }
 
     private void deleteSelectedToBeDeletedItems() {
@@ -291,7 +324,6 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
                             if (!hasDeletedWidget) {
                                 hasDeletedWidget = true;
                             }
-
                             Rp.h().a(bean.name, false);
                         }
                     }
@@ -327,7 +359,6 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
         }
 
         bB.a(getApplicationContext(), Helper.getResString(R.string.common_message_complete_delete), 1).show();
-        collectionAdapter.notifyDataSetChanged();
     }
 
     private int getCurrentCategoryItemId() {
@@ -340,7 +371,6 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
         if (var1 > 2) {
             var2 = var1 - 1;
         }
-
         return var2;
     }
 
@@ -357,8 +387,7 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
             }
         });
 
-        noItemsNote = findViewById(R.id.tv_no_collections);
-        noItemsNote.setText(Helper.getResString(R.string.event_message_no_events));
+        noItemsLayout = findViewById(R.id.layout_no_collections);
         categories = findViewById(R.id.category_list);
         collection = findViewById(R.id.collection_list);
         collectionAdapter = new CollectionAdapter(collection);
@@ -371,9 +400,10 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
         MaterialButton cancel = findViewById(R.id.btn_cancel);
         delete.setText(Helper.getResString(R.string.common_word_delete));
         cancel.setText(Helper.getResString(R.string.common_word_cancel));
-        delete.setOnClickListener(this);
+        
+        // Setup Delete Confirmation
+        delete.setOnClickListener(v -> confirmDeletion());
         cancel.setOnClickListener(this);
-
 
         categories.setOnItemSelectedListener(item -> {
             setSelectedIndex(getSelectedIndex(item.getItemId()));
@@ -391,7 +421,6 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
             case REQUEST_CODE_SHOW_BLOCK_DETAILS -> loadBlocks();
             case REQUEST_CODE_SHOW_MORE_BLOCK_DETAILS -> loadMoreBlocks();
         }
-
         super.onActivityResult(requestCode, resultCode, data);
     }
 
@@ -399,12 +428,13 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     public void onBackPressed() {
         if (selectingToBeDeletedItems) {
             changeDeletingItemsState(false);
+        } else if (searchView != null && !searchView.isIconified()) {
+            searchView.onActionViewCollapsed();
         } else {
             if (hasDeletedWidget) {
                 setResult(RESULT_OK);
                 finish();
             }
-
             super.onBackPressed();
         }
     }
@@ -412,11 +442,8 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     @Override
     public void onClick(View v) {
         int id = v.getId();
-
         if (id == R.id.btn_cancel && selectingToBeDeletedItems) {
             changeDeletingItemsState(false);
-        } else if (id == R.id.btn_delete && selectingToBeDeletedItems) {
-            deleteSelectedToBeDeletedItems();
         } else if (id == R.id.fab) {
             changeDeletingItemsState(false);
             handleFabOnClick(currentItemId);
@@ -426,7 +453,7 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (collectionAdapter.currentViewType == 0) {
+        if (collectionAdapter != null && collectionAdapter.currentViewType == 0) {
             ((GridLayoutManager) Objects.requireNonNull(collection.getLayoutManager())).setSpanCount(getGridLayoutColumnCount());
             collection.requestLayout();
         }
@@ -446,7 +473,41 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.manage_collection_menu, menu);
-        menu.findItem(R.id.menu_collection_delete).setVisible(!selectingToBeDeletedItems);
+        MenuItem deleteItem = menu.findItem(R.id.menu_collection_delete);
+        
+        // Dynamic Menu Setup based on State
+        if (selectingToBeDeletedItems) {
+            deleteItem.setVisible(false);
+            MenuItem selectAllItem = menu.add(Menu.NONE, 999, Menu.NONE, "Select All");
+            selectAllItem.setIcon(R.drawable.ic_done_all_white_48dp); // Standard Android/Sketchware icon
+            selectAllItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        } else {
+            deleteItem.setVisible(true);
+            
+            // Add Search Item
+            MenuItem searchMenuItem = menu.add(Menu.NONE, 998, Menu.NONE, "Search");
+            searchMenuItem.setIcon(R.drawable.ic_search_white_48dp);
+            searchMenuItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW | MenuItem.SHOW_AS_ACTION_ALWAYS);
+            
+            searchView = new SearchView(this);
+            searchView.setQueryHint("Search items...");
+            searchMenuItem.setActionView(searchView);
+            
+            searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                @Override
+                public boolean onQueryTextSubmit(String query) {
+                    return false;
+                }
+
+                @Override
+                public boolean onQueryTextChange(String newText) {
+                    if (collectionAdapter != null) {
+                        collectionAdapter.filter(newText);
+                    }
+                    return true;
+                }
+            });
+        }
 
         return true;
     }
@@ -455,6 +516,8 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
     public boolean onOptionsItemSelected(@NonNull MenuItem menuItem) {
         if (menuItem.getItemId() == R.id.menu_collection_delete) {
             changeDeletingItemsState(!selectingToBeDeletedItems);
+        } else if (menuItem.getItemId() == 999) {
+            collectionAdapter.toggleSelectAll();
         }
 
         return super.onOptionsItemSelected(menuItem);
@@ -505,118 +568,58 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
             collection.setLayoutManager(new GridLayoutManager(getApplicationContext(), getGridLayoutColumnCount()));
             currentItemId = 0;
         }
-
-        if (collectionAdapter != null) {
-            collectionAdapter.notifyDataSetChanged();
-        }
     }
 
     private void loadImages() {
         images = Op.g().f();
-        if (currentItemId == 0) {
-            collectionAdapter.setData(images);
-            collectionAdapter.currentViewType = 0;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 0) collectionAdapter.setData(images);
     }
 
     private void loadSounds() {
         sounds = Qp.g().f();
-        if (currentItemId == 1) {
-            collectionAdapter.setData(sounds);
-            collectionAdapter.currentViewType = 1;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 1) collectionAdapter.setData(sounds);
     }
 
     private void loadFonts() {
         fonts = Np.g().f();
-        if (currentItemId == 2) {
-            collectionAdapter.setData(fonts);
-            collectionAdapter.currentViewType = 2;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 2) collectionAdapter.setData(fonts);
     }
 
     private void loadWidgets() {
         widgets = Rp.h().f();
-        if (currentItemId == 3) {
-            collectionAdapter.setData(widgets);
-            collectionAdapter.currentViewType = 3;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 3) collectionAdapter.setData(widgets);
     }
 
     private void loadBlocks() {
         blocks = Mp.h().f();
-        if (currentItemId == 4) {
-            collectionAdapter.setData(blocks);
-            collectionAdapter.currentViewType = 4;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 4) collectionAdapter.setData(blocks);
     }
 
     private void loadMoreBlocks() {
         moreBlocks = Pp.h().f();
-        if (currentItemId == 5) {
-            collectionAdapter.setData(moreBlocks);
-            collectionAdapter.currentViewType = 5;
-        }
-
-        collectionAdapter.notifyDataSetChanged();
+        if (currentItemId == 5) collectionAdapter.setData(moreBlocks);
     }
 
     private void unselectToBeDeletedItems() {
-        int id = getCurrentCategoryItemId();
-
-        switch (id) {
-            case 0:
-                for (ProjectResourceBean bean : images) {
-                    bean.isSelected = false;
-                }
-                break;
-
-            case 1:
-                for (ProjectResourceBean bean : sounds) {
-                    bean.isSelected = false;
-                }
-                break;
-
-            case 2:
-                for (ProjectResourceBean bean : fonts) {
-                    bean.isSelected = false;
-                }
-                break;
-
-            case 3:
-                for (WidgetCollectionBean bean : widgets) {
-                    bean.isSelected = false;
-                }
-                break;
-
-            default:
-                for (BlockCollectionBean bean : blocks) {
-                    bean.isSelected = false;
-                }
-                break;
+        if (collectionAdapter != null && collectionAdapter.currentCollectionTypeItems != null) {
+            for (SelectableBean bean : collectionAdapter.currentCollectionTypeItems) {
+                bean.isSelected = false;
+            }
         }
     }
-
 
     private class CollectionAdapter extends SoundPlayingAdapter<SoundPlayingAdapter.ViewHolder> {
         private int lastSelectedItemPosition;
         private int currentViewType;
-        private ArrayList<? extends SelectableBean> currentCollectionTypeItems;
+        private ArrayList<SelectableBean> originalItems;
+        private ArrayList<SelectableBean> currentCollectionTypeItems;
 
         public CollectionAdapter(RecyclerView target) {
             super(ManageCollectionActivity.this);
             lastSelectedItemPosition = -1;
             currentViewType = -1;
+            originalItems = new ArrayList<>();
+            currentCollectionTypeItems = new ArrayList<>();
             target.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -625,21 +628,77 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
                         return;
                     }
                     if (dy > 2) {
-                        if (!fab.isEnabled()) {
-                            return;
-                        }
+                        if (!fab.isEnabled()) return;
                         fab.hide();
                     } else if (dy < -2 && fab.isEnabled()) {
                         fab.show();
                     }
                 }
             });
-            currentCollectionTypeItems = new ArrayList<>();
         }
 
         @Override
         public int getItemCount() {
             return currentCollectionTypeItems.size();
+        }
+        
+        public SelectableBean getItem(int position) {
+            return currentCollectionTypeItems.get(position);
+        }
+
+        public void toggleSelectAll() {
+            boolean allSelected = true;
+            for (SelectableBean bean : currentCollectionTypeItems) {
+                if (!bean.isSelected) {
+                    allSelected = false;
+                    break;
+                }
+            }
+            for (SelectableBean bean : currentCollectionTypeItems) {
+                bean.isSelected = !allSelected;
+            }
+            notifyDataSetChanged();
+        }
+
+        public void filter(String query) {
+            query = query.toLowerCase().trim();
+            currentCollectionTypeItems.clear();
+            if (query.isEmpty()) {
+                currentCollectionTypeItems.addAll(originalItems);
+            } else {
+                for (SelectableBean bean : originalItems) {
+                    String name = "";
+                    if (bean instanceof ProjectResourceBean) name = ((ProjectResourceBean) bean).resName;
+                    else if (bean instanceof WidgetCollectionBean) name = ((WidgetCollectionBean) bean).name;
+                    else if (bean instanceof BlockCollectionBean) name = ((BlockCollectionBean) bean).name;
+                    else if (bean instanceof MoreBlockCollectionBean) name = ((MoreBlockCollectionBean) bean).name;
+
+                    if (name.toLowerCase().contains(query)) {
+                        currentCollectionTypeItems.add(bean);
+                    }
+                }
+            }
+            notifyDataSetChanged();
+            checkEmptyState();
+        }
+
+        private void setData(ArrayList<? extends SelectableBean> beans) {
+            this.originalItems.clear();
+            this.originalItems.addAll(beans);
+            this.currentCollectionTypeItems.clear();
+            this.currentCollectionTypeItems.addAll(beans);
+            checkEmptyState();
+            notifyDataSetChanged();
+        }
+
+        private void checkEmptyState() {
+            if (currentCollectionTypeItems.isEmpty()) {
+                noItemsLayout.setVisibility(View.VISIBLE);
+                collection.setVisibility(View.GONE);
+            } else {
+                noItemsLayout.setVisibility(View.GONE);
+                collection.setVisibility(View.VISIBLE);
+            }
         }
 
         private void onBindViewHolder(ImageCollectionViewHolder holder, int position) {
@@ -697,7 +756,6 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
             }
 
             int soundPositionInS = bean.curSoundPosition / 1000;
-
             int totalSoundDurationInS = bean.totalSoundDuration / 1000;
             holder.currentPosition.setText(String.format("%d:%02d", soundPositionInS / 60, soundPositionInS % 60));
             holder.totalDuration.setText(String.format("%d:%02d", totalSoundDurationInS / 60, totalSoundDurationInS % 60));
@@ -796,57 +854,27 @@ public class ManageCollectionActivity extends BaseAppCompatActivity implements V
             BlockUtil.loadMoreblockPreview(holder.blockArea, bean.spec);
         }
 
-        private void setData(ArrayList<? extends SelectableBean> beans) {
-            currentCollectionTypeItems = beans;
-            if (beans.size() <= 0) {
-                noItemsNote.setVisibility(View.VISIBLE);
-            } else {
-                noItemsNote.setVisibility(View.GONE);
-            }
-        }
-
         @Override
         public int getItemViewType(int position) {
-            position = currentViewType;
-
-            if (position == 0) {
-                return 0;
-            } else if (position == 1) {
-                return 1;
-            } else if (position == 2) {
-                return 2;
-            } else if (position == 3) {
-                return 3;
-            } else if (position == 4) {
-                return 4;
-            } else {
-                return 5;
-            }
+            return currentViewType;
         }
 
         @Override
         @NonNull
         public SoundPlayingAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             return switch (viewType) {
-                case 0 ->
-                        new ImageCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_image_list_item, parent, false));
-                case 1 ->
-                        new SoundCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_sound_list_item, parent, false));
-                case 2 ->
-                        new FontCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_font_list_item, parent, false));
-                case 3 ->
-                        new WidgetCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_widget_list_item, parent, false));
-                case 4 ->
-                        new BlockCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_block_list_item, parent, false));
-                default ->
-                        new MoreBlockCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_more_block_list_item, parent, false));
+                case 0 -> new ImageCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_image_list_item, parent, false));
+                case 1 -> new SoundCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_sound_list_item, parent, false));
+                case 2 -> new FontCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_font_list_item, parent, false));
+                case 3 -> new WidgetCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_widget_list_item, parent, false));
+                case 4 -> new BlockCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_block_list_item, parent, false));
+                default -> new MoreBlockCollectionViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.manage_collection_more_block_list_item, parent, false));
             };
         }
 
         @Override
         public void onBindViewHolder(@NonNull SoundPlayingAdapter.ViewHolder holder, int position) {
             int viewType = holder.getItemViewType();
-
             switch (viewType) {
                 case 0 -> onBindViewHolder((ImageCollectionViewHolder) holder, position);
                 case 1 -> onBindViewHolder((SoundCollectionViewHolder) holder, position);
