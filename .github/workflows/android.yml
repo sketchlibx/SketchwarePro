@@ -1,8 +1,6 @@
 name: Android CI
 
 on:
-  release:
-    types: [published]
   push:
     paths:
       - '.github/workflows/android.yml'
@@ -17,9 +15,6 @@ on:
     branches-ignore:
       - 'wip/**'
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   notifyTelegram:
@@ -82,19 +77,11 @@ jobs:
           mv app/build/outputs/apk/release/app-release.apk \
              app/build/outputs/apk/release/app-release-${{ steps.set_sha.outputs.short_sha }}.apk
 
-      - name: Upload Release APK (Actions Tab Artifact)
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: apk-release-${{ steps.set_sha.outputs.short_sha }}
           path: app/build/outputs/apk/release/app-release-${{ steps.set_sha.outputs.short_sha }}.apk
-
-      - name: Upload APK to GitHub Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/release/app-release-${{ steps.set_sha.outputs.short_sha }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   aggregateAndSend:
     name: Send APKs to Telegram
