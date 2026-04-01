@@ -36,6 +36,15 @@ android {
     packagingOptions {
         resources.excludes += "license/*"
         resources.excludes += "META-INF/DEPENDENCIES"
+        
+        // Excludes required by Google API Client to avoid build errors
+        resources.excludes += "META-INF/LICENSE"
+        resources.excludes += "META-INF/LICENSE.txt"
+        resources.excludes += "META-INF/license.txt"
+        resources.excludes += "META-INF/NOTICE"
+        resources.excludes += "META-INF/NOTICE.txt"
+        resources.excludes += "META-INF/notice.txt"
+        
         resources.pickFirsts += "api_database/*"
     }
 
@@ -121,6 +130,9 @@ dependencies {
 
     implementation platform(libs.firebase.bom)
     implementation libs.bundles.firebase
+    
+    // Google Drive Integration
+    implementation libs.bundles.googleDrive
 
     coreLibraryDesugaring libs.desugar.jdk.libs.nio
 }

@@ -67,7 +67,7 @@ public class BackupFactory {
 
     /**
      * @param sc_id For backing up, the target project's ID,
-     *              for restoring, the new project ID
+     * for restoring, the new project ID
      */
     public BackupFactory(String sc_id) {
         this.sc_id = sc_id;
@@ -206,12 +206,10 @@ public class BackupFactory {
         }
     }
 
-    //6.3.0 fix1
     public static void createNomediaFileIn(File dir) {
         FileUtil.writeFile(new File(dir, ".nomedia").getAbsolutePath(), "");
     }
 
-    //6.3.0 fix1
     public static void copySafe(File source, File destination) {
         if (!source.exists()) {
             destination.mkdirs();
@@ -253,31 +251,28 @@ public class BackupFactory {
     }
 
     public static boolean zipContainsFile(String zipPath, String fileName) {
-
         try {
             ZipInputStream zp = new ZipInputStream(new FileInputStream(zipPath));
-
             ZipEntry en;
-
             while ((en = zp.getNextEntry()) != null) {
                 String name = en.getName();
-
                 if (name.equals(fileName) || name.startsWith(fileName + File.separator)) {
                     zp.close();
                     return true;
                 }
             }
-
             zp.close();
-
         } catch (Exception ignored) {
         }
-
         return false;
     }
 
     /************************ BACKUP ************************/
 
+    /**
+     * @param context Can be null if called from a background Worker/Service
+     * @param project_name Name of the project
+     */
     public void backup(Context context, String project_name) {
         String customFileName = ConfigActivity.getBackupFileName();
 
@@ -300,90 +295,70 @@ public class BackupFactory {
                 finalFileName = finalFileName.replaceFirst(Pattern.quote(Objects.requireNonNull(matcher.group(0))), getFormattedDateFrom(matcher.group(1)));
             }
         } catch (Exception ignored) {
-            SketchwareUtil.toastError("Failed To Parse Custom Filename For Backup. Using default");
-            // Example name: InternalDemo v1.0 (com.jbk.internal.demo, 1) 2021-12-31T125827
+            if (context != null) {
+                SketchwareUtil.toastError("Failed To Parse Custom Filename For Backup. Using default");
+            }
             finalFileName = projectNameOnly + " v" + versionName + " (" + pkgName + ", " + versionCode + ") " + getFormattedDateFrom("yyyy-M-dd'T'HHmmss");
         }
         createBackupsFolder();
 
         // Init temporary backup folder
-        File outFolder = new File(getBackupDir(),
-                project_name + "_temp");
+        File outFolder = new File(getBackupDir(), project_name + "_temp");
 
         // Init output zip file
         File outZip = new File(getBackupDir() + File.separator + projectNameOnly, finalFileName +
-                //Adds all the _d if exists. Otherwise its possible that there'll be an infinite loop
                 (project_name.contains("_d") ? project_name.replace(projectNameOnly, "") : "") + "." + EXTENSION);
 
-        // Create a duplicate if already exists (impossible now :3)
         if (outZip.exists()) {
             backup(context, project_name + "_d");
             return;
         }
-        //delete temp dir if exist
+        
         if (outFolder.exists()) {
             FileUtil.deleteFile(outFolder.getAbsolutePath());
         }
 
-        // Create necessary folders
         FileUtil.makeDir(outFolder.getAbsolutePath());
         FileUtil.makeDir(new File(getBackupDir() + File.separator + projectNameOnly).getAbsolutePath());
 
-        // Copy data
         File dataF = new File(outFolder, "data");
         FileUtil.makeDir(dataF.getAbsolutePath());
-        //6.3.0 fix1
         copySafe(getDataDir(), dataF);
 
-        // Copy res
         File resF = new File(outFolder, "resources");
         FileUtil.makeDir(resF.getAbsolutePath());
 
         for (String subfolder : resSubfolders) {
             File resSubf = new File(resF, subfolder);
             FileUtil.makeDir(resSubf.getAbsolutePath());
-
-            //6.3.0 fix1
             copySafe(getResDir(subfolder), resSubf);
-
-            // Write an empty file inside each folder (except icons)
             if (!subfolder.equals("icons")) {
-                //6.3.0 fix1
                 createNomediaFileIn(resSubf);
-                //FileUtil.writeFile(new File(resSubf, ".nomedia").getAbsolutePath(), "");
             }
         }
 
-        // Copy project
         File projectF = new File(outFolder, "project");
         copy(getProjectPath(), projectF);
 
-        // Find local libs used and include them in the backup
         if (backupLocalLibs) {
             File localLibs = getLocalLibsPath();
-
             if (localLibs.exists()) {
                 try {
                     JSONArray ja = new JSONArray(FileUtil.readFile(localLibs.getAbsolutePath()));
-
                     File libsF = new File(outFolder, "local_libs");
                     libsF.mkdirs();
-
                     for (int i = 0; i < ja.length(); i++) {
                         JSONObject jo = ja.getJSONObject(i);
-
                         File f = new File(jo.getString("dexPath")).getParentFile();
                         copy(f, new File(libsF, f.getName()));
-
                     }
-
                 } catch (Exception ignored) {
                 }
             }
         }
 
-        // Find custom blocks used and include them in the backup
-        if (backupCustomBlocks) {
+        // 🚀 BUG FIX: Prevent NullPointerException if context is null (during background auto-backup)
+        if (backupCustomBlocks && context != null) {
             CustomBlocksManager cbm = new CustomBlocksManager(context, sc_id);
 
             Set<ExtraBlockInfo> blocks = new HashSet<>();
@@ -406,28 +381,15 @@ public class BackupFactory {
             FileUtil.writeFile(customBlocksF.getAbsolutePath(), json);
         }
 
-        // Zip final folder
         try {
             zipFolder(outFolder, outZip);
         } catch (Exception e) {
-            // An error occurred
-
-//            StringBuilder sb = new StringBuilder();
-//            for (StackTraceElement el : e.getStackTrace()) {
-//                sb.append(el.toString());
-//                sb.append("\n");
-//            }
-
             error = Log.getStackTraceString(e);
             outPath = null;
-
             return;
         }
 
-        // Delete the temporary folder
         FileUtil.deleteFile(outFolder.getAbsolutePath());
-
-        // Put outZip to global variable
         outPath = outZip;
     }
 
@@ -454,32 +416,24 @@ public class BackupFactory {
         if (name.contains(".")) {
             name = name.substring(0, name.lastIndexOf("."));
         }
-
         restore(swbPath, name);
     }
 
     private void restore(File swbPath, String name) {
-
         createBackupsFolder();
+        File outFolder = new File(getBackupDir(), name);
 
-        // Init temporary restore folder for unzipping
-        File outFolder = new File(getBackupDir(),
-                name);
-
-        // Create a duplicate if already exists
         if (outFolder.exists()) {
             restore(swbPath, name + "_d");
             return;
         }
 
-        // Unzip
         if (!unzip(swbPath, outFolder)) {
             error = "couldn't unzip the backup";
             restoreSuccess = false;
             return;
         }
 
-        // Init files
         File project = new File(outFolder, "project");
         File data = new File(outFolder, "data");
         File res = new File(outFolder, "resources");
@@ -492,44 +446,31 @@ public class BackupFactory {
             return;
         }
 
-        // Put new sc_id
         map.put("sc_id", sc_id);
 
-        // Write new file
         if (!writeEncrypted(project, new Gson().toJson(map))) {
             error = "couldn't write to the project file";
             restoreSuccess = false;
             return;
         }
 
-        // Copy data
         copy(data, getDataDir());
 
-        // Copy res
         for (String subfolder : resSubfolders) {
             File subf = new File(res, subfolder);
-
             copySafe(subf, getResDir(subfolder));
         }
 
-        // Create parent folder
         getProjectPath().getParentFile().mkdirs();
-
-        // Copy project
         copy(project, getProjectPath());
 
-        // Copy local libs if they do not exist
         if (backupLocalLibs) {
             File local_libs = new File(outFolder, "local_libs");
-
             if (local_libs.exists()) {
                 File[] local_libs_content = local_libs.listFiles();
                 if (local_libs_content != null) {
-
                     for (File local_lib : local_libs_content) {
-
                         File local_lib_real_path = new File(getAllLocalLibsDir(), local_lib.getName());
-
                         if (!local_lib_real_path.exists()) {
                             local_lib_real_path.mkdirs();
                             copy(local_lib, local_lib_real_path);
@@ -539,9 +480,7 @@ public class BackupFactory {
             }
         }
 
-        // Delete temp folder
         FileUtil.deleteFile(outFolder.getAbsolutePath());
-
         restoreSuccess = true;
     }
 
@@ -556,9 +495,7 @@ public class BackupFactory {
     /************************ SW METHODS ************************/
 
     private void createBackupsFolder() {
-        // Create the backups folder if it doesn't exist
         String backupsPath = getBackupDir();
-
         FileUtil.makeDir(backupsPath);
     }
 

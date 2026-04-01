@@ -41,6 +41,13 @@ viewpager = "1.1.0"
 woodstoxCore = "7.1.1"
 zipalignJava = "1.2.2"
 
+# Google Drive API & Auth Versions
+playServicesAuth = "21.1.1"
+googleApiClientAndroid = "1.34.1"
+googleApiServicesDrive = "v3-rev20230822-2.0.0"
+googleHttpClientGson = "1.43.3"
+workManager = "2.9.0"
+
 [libraries]
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -109,10 +116,18 @@ woodstox-core = { module = "com.fasterxml.woodstox:woodstox-core", version.ref =
 
 zipalign-java = { module = "com.github.Iyxan23:zipalign-java", version.ref = "zipalignJava" }
 
+# Google Drive API Libraries
+play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
+google-api-client-android = { module = "com.google.api-client:google-api-client-android", version.ref = "googleApiClientAndroid" }
+google-api-services-drive = { module = "com.google.apis:google-api-services-drive", version.ref = "googleApiServicesDrive" }
+google-http-client-gson = { module = "com.google.http-client:google-http-client-gson", version.ref = "googleHttpClientGson" }
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "workManager" }
+
+
 [bundles]
 ui = ["androidx-activity", "androidx-appcompat", "androidx-splashscreen", "androidx-recyclerview",
     "androidx-cardview", "androidx-viewpager", "androidx-swiperefreshlayout", "material", "lottie",
-    "flexbox", "androidx-exifinterface", "androidx-preference"]
+    "flexbox", "androidx-exifinterface", "androidx-preference", "androidx-work-runtime"]
 image = ["glide", "circleimageview"]
 coil = ["coil", "coil-kt-coil-svg"]
 networking = ["okhttp", "okio"]
@@ -121,3 +136,4 @@ shrinker = ["r8", "proguard-core"]
 kotlin_compiler = ["kotlinc-for1-sketchware", "nb-javac-android", "woodstox-core"]
 editor_and_lang = ["editor", "language-java", "language-textmate"]
 firebase = ["firebase-analytics", "firebase-crashlytics", "firebase-messaging"]
+googleDrive = ["play-services-auth", "google-api-client-android", "google-api-services-drive", "google-http-client-gson"]
