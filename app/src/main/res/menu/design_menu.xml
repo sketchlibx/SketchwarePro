@@ -10,7 +10,7 @@
 
     <item
         android:id="@+id/design_option_menu_search"
-        android:icon="@drawable/ic_mtrl_find_replace"
+        android:icon="@drawable/ic_mtrl_search"
         android:orderInCategory="100"
         android:title="@string/logic_search_events"
         android:visible="false"
