@@ -44,7 +44,7 @@ public class GlobalSearchDialog extends BottomSheetDialogFragment {
 
         TextInputEditText searchBox = root.findViewById(R.id.edit_search);
         recyclerView = root.findViewById(R.id.rv_search_results);
-        searchInfo = root.findViewById(R.id.search_info);
+        searchInfo = root.findViewById(getResources().getIdentifier("search_info", "id", getContext().getPackageName()));
         
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
@@ -61,12 +61,12 @@ public class GlobalSearchDialog extends BottomSheetDialogFragment {
             public void afterTextChanged(Editable s) {
                 String query = s.toString();
                 if (query.isEmpty()) {
-                    searchInfo.setVisibility(View.VISIBLE);
+                    if (searchInfo != null) searchInfo.setVisibility(View.VISIBLE);
                     adapter.updateData(new ArrayList<>());
                     return;
                 }
                 
-                searchInfo.setVisibility(View.GONE);
+                if (searchInfo != null) searchInfo.setVisibility(View.GONE);
                 
                 new Thread(() -> {
                     List<SearchResult> results = searchEngine.search(query);
@@ -109,13 +109,16 @@ public class GlobalSearchDialog extends BottomSheetDialogFragment {
             switch (result.category) {
                 case "View": holder.icon.setImageResource(R.drawable.ic_mtrl_screen); break;
                 case "Logic Block": holder.icon.setImageResource(R.drawable.ic_mtrl_puzzle); break;
+                case "Variable":
+                case "List": holder.icon.setImageResource(R.drawable.ic_mtrl_list); break;
                 case "Component": holder.icon.setImageResource(R.drawable.ic_mtrl_component); break;
                 default: holder.icon.setImageResource(R.drawable.ic_mtrl_file);
             }
 
             holder.itemView.setOnClickListener(v -> {
                 dismiss();
-                activity.jumpToFileAndTab(result.fileName, result.tabIndex);
+                // full result to handle deep linking
+                activity.handleSearchResult(result);
             });
         }
 

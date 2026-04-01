@@ -1,6 +1,7 @@
 package com.besome.sketch.editor.view;
 
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.text.InputType;
@@ -16,6 +17,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.FrameLayout;
+
+import androidx.fragment.app.FragmentActivity;
 
 import com.besome.sketch.beans.ProjectFileBean;
 import com.besome.sketch.beans.ViewBean;
@@ -42,6 +46,7 @@ import a.a.a.mB;
 import a.a.a.wB;
 import mod.hey.studios.project.ProjectSettings;
 import mod.hey.studios.util.Helper;
+import mod.hilal.saif.activities.tools.ConfigActivity;
 import pro.sketchware.R;
 
 public class ViewProperty extends LinearLayout implements Kw {
@@ -235,6 +240,7 @@ public class ViewProperty extends LinearLayout implements Kw {
                 .show();
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private void initialize(Context context) {
         this.context = context;
         wB.a(context, this, R.layout.view_property);
@@ -286,6 +292,7 @@ public class ViewProperty extends LinearLayout implements Kw {
         });
         imgDelete = findViewById(R.id.img_delete);
         imgDelete.setOnClickListener(view -> showDeleteViewBeanWidget());
+        
         spnWidget = findViewById(R.id.spn_widget);
         idsAdapter = new ViewIdsAdapter(context, projectActivityViews);
         spnWidget.setAdapter(idsAdapter);
@@ -301,6 +308,31 @@ public class ViewProperty extends LinearLayout implements Kw {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
+
+        // 🔥 NEW: Overlay View to intercept click and show Drawer if Tree View is enabled
+        FrameLayout spinnerContainer = findViewById(R.id.spn_widget_container); // Ensure you wrap your spinner in a FrameLayout with this ID in view_property.xml
+        if (spinnerContainer != null) {
+            View overlay = new View(context);
+            overlay.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            overlay.setBackgroundColor(0x00000000); // Transparent
+            spinnerContainer.addView(overlay);
+            
+            overlay.setOnClickListener(v -> {
+                if (ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW)) {
+                    // Open the custom Left Drawer
+                    if (context instanceof FragmentActivity) {
+                        ViewTreeDrawerDialog drawer = new ViewTreeDrawerDialog(projectActivityViews, viewId -> {
+                            a(viewId); // Select the item from drawer
+                        });
+                        drawer.show(((FragmentActivity) context).getSupportFragmentManager(), "ViewTreeDrawer");
+                    }
+                } else {
+                    // Open default spinner dropdown
+                    spnWidget.performClick();
+                }
+            });
+        }
+
         initializeGroups();
         initializeSeeAllAnimations();
         viewPropertyItems = new ViewPropertyItems(getContext());

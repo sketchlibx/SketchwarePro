@@ -1610,6 +1610,48 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         }
     }
     
+    public void handleSearchResult(mod.sketchlibx.search.SearchResult result) {
+        ProjectFileBean fileBean = jC.b(sc_id).b(result.fileName);
+        if (fileBean == null) {
+            fileBean = jC.b(sc_id).a(result.fileName);
+        }
+        
+        if (fileBean != null) {
+            this.projectFile = fileBean;
+            refreshFileSelector();
+            viewPager.setCurrentItem(result.tabIndex);
+            refresh();
+            
+            // Wait 300ms for ViewPager fragments to load before Deep Linking
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    if (result.category.equals("View") && result.targetId != null) {
+                        // Find the properties pane and select the view programmatically
+                        com.besome.sketch.editor.view.ViewProperty viewProperty = findViewById(R.id.view_property);
+                        if (viewProperty != null) {
+                            viewProperty.a(result.targetId); // This perfectly highlights it in the editor
+                        }
+                    } else if (result.category.equals("Logic Block") && result.targetId != null && result.eventName != null) {
+                        // Directly launch the Logic Editor Activity for this specific event
+                        Intent intent = new Intent(DesignActivity.this, com.besome.sketch.editor.LogicEditorActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        intent.putExtra("sc_id", sc_id);
+                        intent.putExtra("id", result.targetId);
+                        intent.putExtra("event", result.eventName);
+                        intent.putExtra("project_file", projectFile);
+                        intent.putExtra("event_text", result.eventName);
+                        startActivity(intent);
+                    }
+                } catch (Exception e) {
+                    Log.e("DeepLink", "Failed to resolve deep link", e);
+                }
+            }, 300);
+
+        } else {
+            SketchwareUtil.toastError("Could not find file: " + result.fileName);
+        }
+    }
+    
 
     public void reloadProjectAfterTimeTravel() {
         k(); // Show loading dialog

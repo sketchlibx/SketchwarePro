@@ -16,14 +16,20 @@
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp">
 
-        <Spinner
-            android:id="@+id/spn_widget"
+        <FrameLayout
+            android:id="@+id/spn_widget_container"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:layout_weight="1"
-            android:backgroundTint="?attr/colorOnSurface"
-            android:spinnerMode="dropdown" />
+            android:layout_weight="1">
+
+            <Spinner
+                android:id="@+id/spn_widget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="?attr/colorOnSurface"
+                android:spinnerMode="dropdown" />
+        </FrameLayout>
 
         <ImageButton
             android:id="@+id/img_delete"

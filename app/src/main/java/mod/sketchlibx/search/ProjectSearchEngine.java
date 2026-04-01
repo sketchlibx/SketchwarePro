@@ -46,12 +46,12 @@ public class ProjectSearchEngine {
                         results.add(new SearchResult(
                                 targetFileName, "View", 
                                 view.id + " (" + ViewBean.getViewTypeName(view.type) + ")", 
-                                "Text/Hint: " + (view.text != null ? view.text.text : "N/A"), 0));
+                                "Text/Hint: " + (view.text != null ? view.text.text : "N/A"), 0, view.id, null));
                     }
                 }
             }
 
-            // 2. SCAN COMPONENTS (Fixed: 'e' returns Components)
+            // 2. SCAN COMPONENTS (Fixed method 'e' based on your compiler logs)
             ArrayList<ComponentBean> components = jC.a(sc_id).e(targetFileName);
             if (components != null) {
                 for (ComponentBean comp : components) {
@@ -59,16 +59,51 @@ public class ProjectSearchEngine {
                         results.add(new SearchResult(
                                 targetFileName, "Component", 
                                 comp.componentId, 
-                                "Type: " + ComponentBean.getComponentTypeName(comp.type), 2));
+                                "Type: " + ComponentBean.getComponentTypeName(comp.type), 2, comp.componentId, null));
                     }
                 }
             }
 
-            // 3. SCAN LOGIC BLOCKS (Fixed: 'b' returns Logic Blocks HashMap)
+            // 3. SCAN VARIABLES & LISTS (Fixed method 'k' & 'j' based on your compiler logs)
+            ArrayList<Pair<Integer, String>> vars = jC.a(sc_id).k(targetFileName);
+            if (vars != null) {
+                for (Pair<Integer, String> var : vars) {
+                    if (var.second.toLowerCase().contains(q)) {
+                        results.add(new SearchResult(
+                                targetFileName, "Variable", 
+                                var.second, 
+                                "Declared in local variables", 1, var.second, null));
+                    }
+                }
+            }
+            
+            ArrayList<Pair<Integer, String>> lists = jC.a(sc_id).j(targetFileName);
+            if (lists != null) {
+                for (Pair<Integer, String> lst : lists) {
+                    if (lst.second.toLowerCase().contains(q)) {
+                        results.add(new SearchResult(
+                                targetFileName, "List", 
+                                lst.second, 
+                                "Declared in local lists", 1, lst.second, null));
+                    }
+                }
+            }
+
+            // 4. SCAN LOGIC BLOCKS
             HashMap<String, ArrayList<BlockBean>> events = jC.a(sc_id).b(javaName);
             if (events != null) {
                 for (Map.Entry<String, ArrayList<BlockBean>> entry : events.entrySet()) {
-                    String eventName = entry.getKey();
+                    String eventKey = entry.getKey(); // e.g. button1_onClick or onCreate_initializeLogic
+                    String targetId = eventKey;
+                    String eventName = "";
+                    
+                    // Safely extract targetId and eventName for Deep Linking
+                    int lastUnderscore = eventKey.lastIndexOf("_");
+                    if (lastUnderscore != -1) {
+                        targetId = eventKey.substring(0, lastUnderscore);
+                        eventName = eventKey.substring(lastUnderscore + 1);
+                    }
+
                     ArrayList<BlockBean> blocks = entry.getValue();
                     for (BlockBean block : blocks) {
                         boolean matched = block.opCode.toLowerCase().contains(q);
@@ -84,8 +119,8 @@ public class ProjectSearchEngine {
                         if (matched) {
                             results.add(new SearchResult(
                                     targetFileName, "Logic Block", 
-                                    "Event: " + eventName, 
-                                    "Block: " + block.opCode, 1));
+                                    "Event: " + eventKey, 
+                                    "Block: " + block.opCode, 1, targetId, eventName));
                             break;
                         }
                     }

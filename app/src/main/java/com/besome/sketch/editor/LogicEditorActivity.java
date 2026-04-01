@@ -840,6 +840,7 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
                         if (block.V.get(i) instanceof Ss ss) {
                             String javaName = M.getJavaName();
                             String xmlName = M.getXmlName();
+                            
                             if (eventName.equals("onBindCustomView")) {
                                 var eC = jC.a(scId);
                                 var view = eC.c(xmlName, id);
@@ -847,9 +848,12 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
                                     // Event is of a Drawer View
                                     view = eC.c("_drawer_" + xmlName, id);
                                 }
-                                String customView = view.customView;
-                                if (customView != null) {
-                                    xmlName = ProjectFileBean.getXmlName(customView);
+                                if (view != null) {
+                                    String customView = view.customView;
+                                    // 🔥 FIXED: Prevent Sketchware from thinking "NONE" is a valid XML file!
+                                    if (customView != null && !customView.equals("NONE") && !customView.equals("none") && !customView.isEmpty()) {
+                                        xmlName = ProjectFileBean.getXmlName(customView);
+                                    }
                                 }
                             }
 
@@ -1543,8 +1547,12 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             if (view == null) {
                 view = eC.c("_drawer_" + xmlName, id);
             }
-            if (view != null && view.customView != null) {
-                xmlName = ProjectFileBean.getXmlName(view.customView);
+            if (view != null) {
+                String customViewName = view.customView;
+                // 🔥 FIXED THE BUG HERE AGAIN JUST IN CASE:
+                if (customViewName != null && !customViewName.equals("NONE") && !customViewName.equals("none") && !customViewName.isEmpty()) {
+                    xmlName = ProjectFileBean.getXmlName(customViewName);
+                }
             }
         }
 
