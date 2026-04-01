@@ -106,11 +106,9 @@ public class GlobalSearchDialog extends BottomSheetDialogFragment {
             holder.title.setText("[" + result.category + "] " + result.title);
             holder.subtitle.setText(result.fileName + " • " + result.description);
 
-            // Set dynamic icon based on category
             switch (result.category) {
                 case "View": holder.icon.setImageResource(R.drawable.ic_mtrl_screen); break;
                 case "Logic Block": holder.icon.setImageResource(R.drawable.ic_mtrl_puzzle); break;
-                case "Variable/List": holder.icon.setImageResource(R.drawable.ic_mtrl_list); break;
                 case "Component": holder.icon.setImageResource(R.drawable.ic_mtrl_component); break;
                 default: holder.icon.setImageResource(R.drawable.ic_mtrl_file);
             }

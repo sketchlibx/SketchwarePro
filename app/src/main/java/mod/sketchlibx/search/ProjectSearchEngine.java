@@ -51,8 +51,8 @@ public class ProjectSearchEngine {
                 }
             }
 
-            // 2. SCAN COMPONENTS
-            ArrayList<ComponentBean> components = jC.a(sc_id).b(targetFileName);
+            // 2. SCAN COMPONENTS (Fixed: 'e' returns Components)
+            ArrayList<ComponentBean> components = jC.a(sc_id).e(targetFileName);
             if (components != null) {
                 for (ComponentBean comp : components) {
                     if (comp.componentId.toLowerCase().contains(q)) {
@@ -64,21 +64,8 @@ public class ProjectSearchEngine {
                 }
             }
 
-            // 3. SCAN VARIABLES & LISTS (Fixed: method `e` returns vars in current version)
-            ArrayList<Pair<Integer, String>> vars = jC.a(sc_id).e(targetFileName);
-            if (vars != null) {
-                for (Pair<Integer, String> var : vars) {
-                    if (var.second.toLowerCase().contains(q)) {
-                        results.add(new SearchResult(
-                                targetFileName, "Variable/List", 
-                                var.second, 
-                                "Declared in local variables", 1));
-                    }
-                }
-            }
-
-            // 4. SCAN LOGIC BLOCKS (Fixed to deep scan logic)
-            HashMap<String, ArrayList<BlockBean>> events = jC.a(sc_id).b(javaName); // b() returns logic
+            // 3. SCAN LOGIC BLOCKS (Fixed: 'b' returns Logic Blocks HashMap)
+            HashMap<String, ArrayList<BlockBean>> events = jC.a(sc_id).b(javaName);
             if (events != null) {
                 for (Map.Entry<String, ArrayList<BlockBean>> entry : events.entrySet()) {
                     String eventName = entry.getKey();
