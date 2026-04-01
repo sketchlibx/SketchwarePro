@@ -4,6 +4,7 @@ import android.text.TextUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import a.a.a.jC;
 import com.besome.sketch.beans.BlockBean;
@@ -26,7 +27,6 @@ public class ProjectSearchEngine {
 
         String q = query.toLowerCase();
         
-        // Fetch all files in the project
         ArrayList<ProjectFileBean> allFiles = jC.b(sc_id).b();
         if (allFiles == null) return results;
 
@@ -35,7 +35,7 @@ public class ProjectSearchEngine {
             String javaName = file.getJavaName();
             String targetFileName = xmlName.isEmpty() ? javaName : xmlName;
 
-            // 1. SCAN VIEWS (UI Elements)
+
             ArrayList<ViewBean> views = jC.a(sc_id).d(targetFileName);
             if (views != null) {
                 for (ViewBean view : views) {
@@ -49,8 +49,7 @@ public class ProjectSearchEngine {
                 }
             }
 
-            // 2. SCAN COMPONENTS
-            ArrayList<ComponentBean> components = jC.a(sc_id).b(targetFileName);
+            ArrayList<ComponentBean> components = jC.a(sc_id).e(targetFileName);
             if (components != null) {
                 for (ComponentBean comp : components) {
                     if (comp.componentId.toLowerCase().contains(q)) {
@@ -62,8 +61,7 @@ public class ProjectSearchEngine {
                 }
             }
 
-            // 3. SCAN VARIABLES & LISTS
-            ArrayList<Pair<Integer, String>> vars = jC.a(sc_id).e(targetFileName);
+            ArrayList<Pair<Integer, String>> vars = jC.a(sc_id).k(targetFileName);
             if (vars != null) {
                 for (Pair<Integer, String> var : vars) {
                     if (var.second.toLowerCase().contains(q)) {
@@ -75,13 +73,12 @@ public class ProjectSearchEngine {
                 }
             }
 
-            // 4. SCAN LOGIC (Blocks and Events)
-            HashMap<String, ArrayList<BlockBean>> events = jC.d(sc_id).c(targetFileName);
+            HashMap<String, ArrayList<BlockBean>> events = jC.a(sc_id).b(targetFileName);
             if (events != null) {
-                for (String eventName : events.keySet()) {
-                    ArrayList<BlockBean> blocks = events.get(eventName);
+                for (Map.Entry<String, ArrayList<BlockBean>> entry : events.entrySet()) {
+                    String eventName = entry.getKey();
+                    ArrayList<BlockBean> blocks = entry.getValue();
                     for (BlockBean block : blocks) {
-                        // Check block OP code or parameters
                         boolean matched = block.opCode.toLowerCase().contains(q);
                         if (!matched && block.parameters != null) {
                             for (String param : block.parameters) {
@@ -96,8 +93,8 @@ public class ProjectSearchEngine {
                             results.add(new SearchResult(
                                     targetFileName, "Logic Block", 
                                     "Event: " + eventName, 
-                                    "Block: " + block.opCode + " " + block.parameters, 1));
-                            break; // Stop at first block match per event to avoid spamming results
+                                    "Block: " + block.opCode, 1));
+                            break;
                         }
                     }
                 }

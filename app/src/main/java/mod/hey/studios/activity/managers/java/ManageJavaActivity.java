@@ -104,8 +104,8 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
     private FilesAdapter filesAdapter;
 
     private boolean isTreeViewEnabled;
-    private List<FileNode> rootNodes;
-    private final List<FileNode> flatNodesList = new ArrayList<>();
+    private ArrayList<FileNode> rootNodes;
+    private final ArrayList<FileNode> flatNodesList = new ArrayList<>();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -334,7 +334,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         if (isTreeViewEnabled) {
             if (rootNodes == null) {
                 rootNodes = new ArrayList<>();
-                List<String> paths = new ArrayList<>();
+                ArrayList<String> paths = new ArrayList<>(); // Fixed: Changed to ArrayList
                 FileUtil.listDir(fpu.getPathJava(sc_id), paths);
                 Helper.sortPaths(paths);
                 for (String p : paths) rootNodes.add(new FileNode(p, 0));
@@ -347,7 +347,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
             
             flatNodesList.clear();
             for (String p : currentTree) {
-                flatNodesList.add(new FileNode(p, 0)); // Treat all as depth 0 for flat view
+                flatNodesList.add(new FileNode(p, 0)); 
             }
             
             if (filesAdapter == null) {
@@ -378,7 +378,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         if (node.isFolder && node.isExpanded) {
             if (node.children == null) {
                 node.children = new ArrayList<>();
-                List<String> paths = new ArrayList<>();
+                ArrayList<String> paths = new ArrayList<>(); // Fixed: Changed to ArrayList
                 FileUtil.listDir(node.path, paths);
                 Helper.sortPaths(paths);
                 for (String p : paths) {
@@ -397,7 +397,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         public boolean isFolder;
         public boolean isExpanded;
         public int depth;
-        public List<FileNode> children;
+        public ArrayList<FileNode> children; // Fixed: Changed to ArrayList
 
         public FileNode(String p, int d) {
             path = p;
@@ -409,9 +409,9 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
     }
 
     public class FilesAdapter extends RecyclerView.Adapter<FilesAdapter.ViewHolder> {
-        private final List<FileNode> nodes;
+        private final ArrayList<FileNode> nodes; // Fixed: Changed to ArrayList
 
-        public FilesAdapter(List<FileNode> nodes) {
+        public FilesAdapter(ArrayList<FileNode> nodes) {
             this.nodes = nodes;
         }
 
@@ -429,7 +429,6 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
 
             holder.binding.title.setText(fileName);
 
-            // Apply Indentation for Tree View
             if (isTreeViewEnabled) {
                 int paddingPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 20, getResources().getDisplayMetrics());
                 holder.binding.getRoot().setPadding(paddingPx, 0, 0, 0);
@@ -439,7 +438,8 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
 
             if (node.isFolder) {
                 if (isTreeViewEnabled) {
-                    holder.binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_folder_open : R.drawable.ic_mtrl_folder);
+                    // Fixed: Used ic_mtrl_folder_code instead of missing ic_folder_open
+                    holder.binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_mtrl_folder_code : R.drawable.ic_mtrl_folder);
                 } else {
                     holder.binding.icon.setImageResource(R.drawable.ic_mtrl_folder);
                 }
@@ -451,7 +451,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
 
             binding.getRoot().setOnClickListener(view -> {
                 if (node.isFolder) {
-                    current_path = node.path; // Update path for "Create New"
+                    current_path = node.path; 
                     if (isTreeViewEnabled) {
                         node.isExpanded = !node.isExpanded;
                         refreshFlatList();
