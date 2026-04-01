@@ -15,9 +15,6 @@ public class TimeMachineManager {
     private static final String HISTORY_DIR = ".sketchware/backups/history/";
     private static final int MAX_SNAPSHOTS = 20;
 
-    /**
-     * Takes a lightweight silent snapshot of the logic and UI data.
-     */
     public static void takeSnapshot(String sc_id) {
         new Thread(() -> {
             try {
@@ -34,20 +31,32 @@ public class TimeMachineManager {
                 File dataDir = new File(Environment.getExternalStorageDirectory(), ".sketchware/data/" + sc_id);
                 File projFile = new File(Environment.getExternalStorageDirectory(), ".sketchware/mysc/list/" + sc_id + "/project");
 
-                // Only copy pure logic and view data, extremely fast and lightweight
                 BackupFactory.copy(dataDir, new File(tempDir, "data"));
                 BackupFactory.copy(projFile, new File(tempDir, "project"));
 
                 BackupFactory.zipFolder(tempDir, outZip);
                 FileUtil.deleteFile(tempDir.getAbsolutePath());
                 
+                File[] existingSnaps = historyFolder.listFiles((dir, name) -> name.endsWith(".zip"));
+                if (existingSnaps != null && existingSnaps.length > 1) {
+                    Arrays.sort(existingSnaps, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+                    File newest = existingSnaps[0]; // The one we just created
+                    File previous = existingSnaps[1]; // The one right before it
+
+                    // If file sizes are exactly identical, chances are no changes were made (logic/xml bytes are same).
+                    if (newest.length() == previous.length()) {
+                        newest.delete();
+                        return; // Exit without saving
+                    }
+                }
+
                 // Auto-cleanup: Keep only the latest 20 snapshots
-                File[] files = historyFolder.listFiles();
+                File[] files = historyFolder.listFiles((dir, name) -> name.endsWith(".zip"));
                 if (files != null && files.length > MAX_SNAPSHOTS) {
                     Arrays.sort(files, (f1, f2) -> Long.compare(f1.lastModified(), f2.lastModified()));
                     int toDelete = files.length - MAX_SNAPSHOTS;
                     for (int i = 0; i < toDelete; i++) {
-                        files[i].delete();
+                        files[files.length - 1 - i].delete();
                     }
                 }
             } catch (Exception e) {
@@ -56,9 +65,6 @@ public class TimeMachineManager {
         }).start();
     }
 
-    /**
-     * Restores a previously saved snapshot.
-     */
     public static boolean restoreSnapshot(String sc_id, File snapshotZip) {
         try {
             File tempDir = new File(Environment.getExternalStorageDirectory(), ".sketchware/cache/history_temp_" + sc_id);
@@ -71,7 +77,6 @@ public class TimeMachineManager {
             File dataDir = new File(Environment.getExternalStorageDirectory(), ".sketchware/data/" + sc_id);
             File projFile = new File(Environment.getExternalStorageDirectory(), ".sketchware/mysc/list/" + sc_id + "/project");
 
-            // Overwrite existing data
             FileUtil.deleteFile(dataDir.getAbsolutePath());
             
             BackupFactory.copySafe(new File(tempDir, "data"), dataDir);

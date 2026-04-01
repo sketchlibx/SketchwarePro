@@ -1,19 +1,18 @@
 package dev.aldi.sayuti.editor.manage;
 
 import static android.net.ConnectivityManager.NetworkCallback;
+import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.createLibraryMap;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
-import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.createLibraryMap;
-
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.net.Network;
-import android.net.NetworkCapabilities;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
@@ -102,7 +101,7 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
-                if (binding != null) {
+                if (binding != null && getActivity() != null) {
                     requireActivity().runOnUiThread(() -> binding.btnDownload.setEnabled(true));
                 }
             }
@@ -110,13 +109,12 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
             @Override
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
-                if (binding != null) {
+                if (binding != null && getActivity() != null) {
                     requireActivity().runOnUiThread(() -> binding.btnDownload.setEnabled(false));
                 }
             }
         };
         connectivityManager.registerDefaultNetworkCallback(networkCallback);
-        // Initial check
         binding.btnDownload.setEnabled(isNetworkAvailable());
     }
 
@@ -151,12 +149,9 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     private void showDownloadConfirmationDialog(String group, String artifact, String version) {
         boolean skipSubdependencies = binding.cbSkipSubdependencies.isChecked();
 
-        String message;
-        if (skipSubdependencies) {
-            message = "Are you sure you want to download " + dependencyName;
-        } else {
-            message = "Are you sure you want to download " + dependencyName + " and its sub-dependencies?";
-        }
+        String message = skipSubdependencies 
+                ? "Are you sure you want to download " + dependencyName 
+                : "Are you sure you want to download " + dependencyName + " and its sub-dependencies?";
 
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Confirm Download")
@@ -180,149 +175,157 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
         var handler = new Handler(Looper.getMainLooper());
 
         downloadExecutor.execute(() -> {
-            BuiltInLibraries.maybeExtractAndroidJar((message, progress) ->
-                    handler.post(() -> binding.overallProgress.setIndeterminate(true)));
-            BuiltInLibraries.maybeExtractCoreLambdaStubsJar();
+            try {
+                BuiltInLibraries.maybeExtractAndroidJar((message, progress) ->
+                        handler.post(() -> binding.overallProgress.setIndeterminate(true)));
+                BuiltInLibraries.maybeExtractCoreLambdaStubsJar();
 
-            resolver.resolveDependency(new DependencyResolver.DependencyResolverCallback() {
-                @Override
-                public void onResolving(@NonNull Artifact artifact, @NonNull Artifact dependency) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dependency);
-                        item.setState(DependencyDownloadItem.DownloadState.RESOLVING);
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                resolver.resolveDependency(new DependencyResolver.DependencyResolverCallback() {
+                    @Override
+                    public void onResolving(@NonNull Artifact artifact, @NonNull Artifact dependency) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dependency);
+                            item.setState(DependencyDownloadItem.DownloadState.RESOLVING);
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void onResolutionComplete(@NonNull Artifact dep) {
-                    handler.post(() -> updateDependencyState(dep, DependencyDownloadItem.DownloadState.COMPLETED));
-                }
+                    @Override
+                    public void onResolutionComplete(@NonNull Artifact dep) {
+                        handler.post(() -> updateDependencyState(dep, DependencyDownloadItem.DownloadState.COMPLETED));
+                    }
 
-                @Override
-                public void onArtifactNotFound(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        setDownloadState(false);
-                        SketchwareUtil.showAnErrorOccurredDialog(getActivity(), "Dependency '" + dep + "' not found");
-                    });
-                }
+                    @Override
+                    public void onArtifactNotFound(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            setDownloadState(false);
+                            SketchwareUtil.showAnErrorOccurredDialog(getActivity(), "Dependency '" + dep + "' not found");
+                        });
+                    }
 
-                @Override
-                public void onSkippingResolution(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setState(DependencyDownloadItem.DownloadState.COMPLETED);
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                    @Override
+                    public void onSkippingResolution(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setState(DependencyDownloadItem.DownloadState.COMPLETED);
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void onVersionNotFound(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setError("Version not available");
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                    @Override
+                    public void onVersionNotFound(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setError("Version not available");
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void onDependenciesNotFound(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setError("Dependencies not found");
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                    @Override
+                    public void onDependenciesNotFound(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setError("Dependencies not found");
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void onInvalidScope(@NonNull Artifact dep, @NonNull String scope) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setError("Invalid scope: " + scope);
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                    @Override
+                    public void onInvalidScope(@NonNull Artifact dep, @NonNull String scope) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setError("Invalid scope: " + scope);
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void invalidPackaging(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setError("Invalid packaging");
-                        dependencyAdapter.updateDependency(item);
-                    });
-                }
+                    @Override
+                    public void invalidPackaging(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setError("Invalid packaging");
+                            dependencyAdapter.updateDependency(item);
+                        });
+                    }
 
-                @Override
-                public void onDownloadStart(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        setDownloadState(true);
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setState(DependencyDownloadItem.DownloadState.DOWNLOADING);
-                        dependencyAdapter.updateDependency(item);
-                        updateOverallProgress();
-                    });
-                }
+                    @Override
+                    public void onDownloadStart(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            setDownloadState(true);
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setState(DependencyDownloadItem.DownloadState.DOWNLOADING);
+                            dependencyAdapter.updateDependency(item);
+                            updateOverallProgress();
+                        });
+                    }
 
-                @Override
-                public void onDownloadEnd(@NonNull Artifact dep) {
-                    handler.post(() -> {
-                        updateDependencyState(dep, DependencyDownloadItem.DownloadState.COMPLETED);
-                        updateOverallProgress();
-                    });
-                }
+                    @Override
+                    public void onDownloadEnd(@NonNull Artifact dep) {
+                        handler.post(() -> {
+                            updateDependencyState(dep, DependencyDownloadItem.DownloadState.COMPLETED);
+                            updateOverallProgress();
+                        });
+                    }
 
-                @Override
-                public void onDownloadError(@NonNull Artifact dep, @NonNull Throwable e) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dep);
-                        item.setError(e.getMessage());
-                        dependencyAdapter.updateDependency(item);
-                        setDownloadState(false);
-                        SketchwareUtil.showAnErrorOccurredDialog(getActivity(),
-                                "Downloading dependency '" + dep + "' failed: " + Log.getStackTraceString(e));
-                    });
-                }
+                    @Override
+                    public void onDownloadError(@NonNull Artifact dep, @NonNull Throwable e) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dep);
+                            item.setError(e.getMessage());
+                            dependencyAdapter.updateDependency(item);
+                            setDownloadState(false);
+                            SketchwareUtil.showAnErrorOccurredDialog(getActivity(),
+                                    "Downloading dependency '" + dep + "' failed: " + Log.getStackTraceString(e));
+                        });
+                    }
 
-                @Override
-                public void unzipping(@NonNull Artifact artifact) {
-                    handler.post(() -> updateDependencyState(artifact, DependencyDownloadItem.DownloadState.UNZIPPING));
-                }
+                    @Override
+                    public void unzipping(@NonNull Artifact artifact) {
+                        handler.post(() -> updateDependencyState(artifact, DependencyDownloadItem.DownloadState.UNZIPPING));
+                    }
 
-                @Override
-                public void dexing(@NonNull Artifact dep) {
-                    handler.post(() -> updateDependencyState(dep, DependencyDownloadItem.DownloadState.DEXING));
-                }
+                    @Override
+                    public void dexing(@NonNull Artifact dep) {
+                        handler.post(() -> updateDependencyState(dep, DependencyDownloadItem.DownloadState.DEXING));
+                    }
 
-                @Override
-                public void dexingFailed(@NonNull Artifact dependency, @NonNull Exception e) {
-                    handler.post(() -> {
-                        DependencyDownloadItem item = findOrCreateDependencyItem(dependency);
-                        item.setError("Dexing failed: " + e.getMessage());
-                        dependencyAdapter.updateDependency(item);
-                        setDownloadState(false);
-                        SketchwareUtil.showAnErrorOccurredDialog(getActivity(),
-                                "Dexing dependency '" + dependency + "' failed: " + Log.getStackTraceString(e));
-                    });
-                }
+                    @Override
+                    public void dexingFailed(@NonNull Artifact dependency, @NonNull Exception e) {
+                        handler.post(() -> {
+                            DependencyDownloadItem item = findOrCreateDependencyItem(dependency);
+                            item.setError("Dexing failed: " + e.getMessage());
+                            dependencyAdapter.updateDependency(item);
+                            setDownloadState(false);
+                            SketchwareUtil.showAnErrorOccurredDialog(getActivity(),
+                                    "Dexing dependency '" + dependency + "' failed: " + Log.getStackTraceString(e));
+                        });
+                    }
 
-                @Override
-                public void onTaskCompleted(@NonNull List<String> dependencies) {
-                    handler.post(() -> {
-                        SketchwareUtil.toast("Library downloaded successfully");
-                        if (!notAssociatedWithProject) {
-                            var fileContent = FileUtil.readFile(localLibFile);
-                            var enabledLibs = gson.fromJson(fileContent, Helper.TYPE_MAP_LIST);
-                            enabledLibs.addAll(dependencies.stream()
-                                    .map(name -> createLibraryMap(name, dependencyName))
-                                    .toList());
-                            FileUtil.writeFile(localLibFile, gson.toJson(enabledLibs));
-                        }
-                        if (getActivity() == null) return;
-                        dismiss();
-                        if (onLibraryDownloadedTask != null) onLibraryDownloadedTask.invoke();
-                    });
-                }
-            });
+                    @Override
+                    public void onTaskCompleted(@NonNull List<String> dependencies) {
+                        handler.post(() -> {
+                            SketchwareUtil.toast("Library downloaded successfully");
+                            if (!notAssociatedWithProject) {
+                                var fileContent = FileUtil.readFile(localLibFile);
+                                var enabledLibs = gson.fromJson(fileContent, Helper.TYPE_MAP_LIST);
+                                enabledLibs.addAll(dependencies.stream()
+                                        .map(name -> createLibraryMap(name, dependencyName))
+                                        .toList());
+                                FileUtil.writeFile(localLibFile, gson.toJson(enabledLibs));
+                            }
+                            if (getActivity() == null) return;
+                            dismiss();
+                            if (onLibraryDownloadedTask != null) onLibraryDownloadedTask.invoke();
+                        });
+                    }
+                });
+            } catch (Exception e) {
+                handler.post(() -> {
+                    setDownloadState(false);
+                    SketchwareUtil.showAnErrorOccurredDialog(getActivity(), 
+                        "Invalid Dependency or Tag Not Found!\nDetails: " + e.getMessage());
+                });
+            }
         });
     }
 

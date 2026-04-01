@@ -2,10 +2,11 @@ package mod.sketchlibx.project.history;
 
 import android.os.Bundle;
 import android.os.Environment;
+import android.text.format.Formatter;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import pro.sketchware.R;
 import pro.sketchware.utility.SketchwareUtil;
 
 public class TimeTravelBottomSheet extends BottomSheetDialogFragment {
@@ -37,40 +39,27 @@ public class TimeTravelBottomSheet extends BottomSheetDialogFragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        LinearLayout root = new LinearLayout(getContext());
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 32, 32, 32);
+        View root = inflater.inflate(R.layout.dialog_version_history, container, false);
 
-        TextView title = new TextView(getContext());
-        title.setText("Version History");
-        title.setTextSize(18);
-        title.setPadding(0, 0, 0, 8);
-        root.addView(title);
-
-        TextView subtitle = new TextView(getContext());
-        subtitle.setText("Select a snapshot to instantly restore your blocks and views. Warning: Current unsaved changes will be lost.");
-        subtitle.setTextSize(12);
-        subtitle.setTextColor(0xFF757575);
-        subtitle.setPadding(0, 0, 0, 24);
-        root.addView(subtitle);
-
-        RecyclerView recyclerView = new RecyclerView(getContext());
+        RecyclerView recyclerView = root.findViewById(R.id.rv_history);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        root.addView(recyclerView);
 
         File historyFolder = new File(Environment.getExternalStorageDirectory(), ".sketchware/backups/history/" + sc_id);
         List<File> snapshots = new ArrayList<>();
+        
+        // Ensure we only read .zip files to prevent cross-project leaking or garbage data
         if (historyFolder.exists() && historyFolder.listFiles() != null) {
-            snapshots.addAll(Arrays.asList(historyFolder.listFiles()));
-            // Sort by newest first
+            for (File file : historyFolder.listFiles()) {
+                if (file.getName().endsWith(".zip")) {
+                    snapshots.add(file);
+                }
+            }
             snapshots.sort((f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
         }
 
         if (snapshots.isEmpty()) {
-            TextView emptyText = new TextView(getContext());
-            emptyText.setText("No history found. Save or Run the project to create a snapshot.");
-            emptyText.setPadding(0, 32, 0, 0);
-            root.addView(emptyText);
+            TextView subtitle = root.findViewById(R.id.subtitle);
+            subtitle.setText("No history found. Save or Run the project to create a snapshot.");
         } else {
             recyclerView.setAdapter(new SnapshotAdapter(snapshots));
         }
@@ -88,28 +77,20 @@ public class TimeTravelBottomSheet extends BottomSheetDialogFragment {
         @NonNull
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            LinearLayout layout = new LinearLayout(parent.getContext());
-            layout.setOrientation(LinearLayout.VERTICAL);
-            layout.setPadding(16, 24, 16, 24);
-            layout.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-            TextView title = new TextView(parent.getContext());
-            title.setTag("title");
-            title.setTextSize(16);
-            title.setTextColor(0xFF000000);
-
-            layout.addView(title);
-            return new ViewHolder(layout);
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_version_history, parent, false);
+            return new ViewHolder(view);
         }
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             File file = items.get(position);
-            TextView title = holder.itemView.findViewWithTag("title");
             
-            // Clean up name for display: Snapshot_10-Oct-2025_11-45-00_AM.zip -> 10-Oct-2025 11:45:00 AM
             String displayName = file.getName().replace("Snapshot_", "").replace(".zip", "").replace("_", " ");
-            title.setText("🕒 " + displayName);
+            holder.title.setText(displayName);
+            
+            // Format file size nicely
+            String fileSize = Formatter.formatShortFileSize(getContext(), file.length());
+            holder.subtitle.setText("Size: " + fileSize);
 
             holder.itemView.setOnClickListener(v -> {
                 new MaterialAlertDialogBuilder(activity)
@@ -134,8 +115,13 @@ public class TimeTravelBottomSheet extends BottomSheetDialogFragment {
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {
+            TextView title, subtitle;
+            ImageView icon;
             public ViewHolder(@NonNull View itemView) {
                 super(itemView);
+                title = itemView.findViewById(R.id.tv_title);
+                subtitle = itemView.findViewById(R.id.tv_subtitle);
+                icon = itemView.findViewById(R.id.img_icon);
             }
         }
     }
