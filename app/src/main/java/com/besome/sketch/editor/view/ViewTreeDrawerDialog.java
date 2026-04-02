@@ -21,6 +21,7 @@ import com.besome.sketch.beans.ViewBean;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import pro.sketchware.R;
 
@@ -28,7 +29,10 @@ public class ViewTreeDrawerDialog extends DialogFragment {
 
     private final ArrayList<ViewBean> currentViews;
     private final OnViewSelectedListener listener;
-    private final ArrayList<TreeNode> treeNodesList = new ArrayList<>();
+    
+    private final List<TreeNode> rootNodes = new ArrayList<>();
+    private final List<TreeNode> displayNodes = new ArrayList<>();
+    private TreeAdapter adapter;
 
     public interface OnViewSelectedListener {
         void onSelected(String viewId);
@@ -45,7 +49,7 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         Window window = getDialog().getWindow();
         if (window != null) {
             window.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
-            window.setGravity(Gravity.START); // Opens from the left like a real Drawer
+            window.setGravity(Gravity.START);
             window.setBackgroundDrawableResource(android.R.color.transparent);
             window.setWindowAnimations(R.style.Animation_Design_BottomSheetDialog);
         }
@@ -54,30 +58,35 @@ public class ViewTreeDrawerDialog extends DialogFragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutParams(new ViewGroup.LayoutParams(
                 (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 320, getResources().getDisplayMetrics()),
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Use Surface Container Low for Drawer Background (Matches Design Drawer)
         TypedValue typedValue = new TypedValue();
         requireContext().getTheme().resolveAttribute(R.attr.colorSurfaceContainerLow, typedValue, true);
         root.setBackgroundColor(typedValue.data);
 
-        // Add Header Title "Component Tree"
+        // Header: "Component Tree"
         TextView header = new TextView(requireContext());
         header.setText("Component Tree");
-        header.setTextSize(20);
+        header.setTextSize(18);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
         requireContext().getTheme().resolveAttribute(R.attr.colorOnSurface, typedValue, true);
         header.setTextColor(typedValue.data);
         
         int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
-        header.setPadding(padding, padding + 16, padding, padding);
+        header.setPadding(padding, padding + 8, padding, padding);
         root.addView(header);
 
+        // Divider
+        View divider = new View(requireContext());
+        requireContext().getTheme().resolveAttribute(R.attr.colorSurfaceContainerHighest, typedValue, true);
+        divider.setBackgroundColor(typedValue.data);
+        root.addView(divider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, getResources().getDisplayMetrics())));
+
+        // RecyclerView
         RecyclerView rv = new RecyclerView(requireContext());
         rv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f));
         rv.setLayoutManager(new LinearLayoutManager(getContext()));
@@ -85,90 +94,126 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         rv.setPadding(0, 0, 0, padding);
         
         buildTree();
-        rv.setAdapter(new TreeAdapter());
+        refreshDisplayList();
+        
+        adapter = new TreeAdapter();
+        rv.setAdapter(adapter);
         
         root.addView(rv);
         return root;
     }
 
     private void buildTree() {
-        HashMap<String, ArrayList<ViewBean>> childrenMap = new HashMap<>();
-        ArrayList<ViewBean> rootViews = new ArrayList<>();
+        HashMap<String, List<ViewBean>> childrenMap = new HashMap<>();
+        List<ViewBean> roots = new ArrayList<>();
 
+        // Group children by their parent's ID
         for (ViewBean bean : currentViews) {
             if (bean.parent == null || bean.parent.equals("root") || bean.parent.isEmpty()) {
-                rootViews.add(bean);
+                roots.add(bean);
             } else {
                 childrenMap.computeIfAbsent(bean.parent, k -> new ArrayList<>()).add(bean);
             }
         }
 
-        for (ViewBean root : rootViews) {
-            buildTreeList(root, childrenMap, 0);
+        for (ViewBean root : roots) {
+            rootNodes.add(createNode(root, childrenMap, 0));
         }
     }
 
-    private void buildTreeList(ViewBean parent, HashMap<String, ArrayList<ViewBean>> childrenMap, int depth) {
-        treeNodesList.add(new TreeNode(parent, depth));
+    private TreeNode createNode(ViewBean view, HashMap<String, List<ViewBean>> childrenMap, int depth) {
+        TreeNode node = new TreeNode(view, depth);
+        // By default, expand everything
+        node.isExpanded = true; 
 
-        ArrayList<ViewBean> children = childrenMap.get(parent.id);
+        List<ViewBean> children = childrenMap.get(view.id);
         if (children != null) {
             for (ViewBean child : children) {
-                buildTreeList(child, childrenMap, depth + 1);
+                node.children.add(createNode(child, childrenMap, depth + 1));
+            }
+        }
+        return node;
+    }
+
+    // 🔥 3. Flattens the tree into a list for the RecyclerView based on expanded state
+    private void refreshDisplayList() {
+        displayNodes.clear();
+        for (TreeNode root : rootNodes) {
+            addNodeToDisplay(root);
+        }
+    }
+
+    private void addNodeToDisplay(TreeNode node) {
+        displayNodes.add(node);
+        if (node.isExpanded) {
+            for (TreeNode child : node.children) {
+                addNodeToDisplay(child);
             }
         }
     }
 
+    // Tree Node Data Class
     private static class TreeNode {
         ViewBean viewBean;
         int depth;
+        boolean isExpanded;
+        List<TreeNode> children = new ArrayList<>();
+
         TreeNode(ViewBean viewBean, int depth) {
             this.viewBean = viewBean;
             this.depth = depth;
         }
+
+        boolean hasChildren() {
+            return !children.isEmpty();
+        }
     }
 
+    // RecyclerView Adapter
     private class TreeAdapter extends RecyclerView.Adapter<TreeAdapter.ViewHolder> {
 
         @NonNull
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_view_tree_node, parent, false);
             return new ViewHolder(view);
         }
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            TreeNode node = treeNodesList.get(position);
+            TreeNode node = displayNodes.get(position);
             
-            // Set Titles and Icons
             holder.tvTitle.setText(node.viewBean.id);
             
             String typeName = ViewBean.getViewTypeName(node.viewBean.type);
-            // If it's a Custom View or similar, show that information too
             if (node.viewBean.customView != null && !node.viewBean.customView.isEmpty() && !node.viewBean.customView.equals("none") && !node.viewBean.customView.equals("NONE")) {
                 typeName += " (" + node.viewBean.customView + ")";
             }
             holder.tvSubtitle.setText(typeName);
             holder.imgIcon.setImageResource(ViewBean.getViewTypeResId(node.viewBean.type));
 
-            // Setup Indentation based on Depth
-            int paddingBase = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
-            int paddingDepth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 22, getResources().getDisplayMetrics());
-            
-            holder.containerLayout.setPadding(paddingBase + paddingDepth, holder.containerLayout.getPaddingTop(), 
-                    holder.containerLayout.getPaddingRight(), holder.containerLayout.getPaddingBottom());
+            int paddingBase = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, getResources().getDisplayMetrics());
+            int paddingDepth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 24, getResources().getDisplayMetrics());
+            holder.rootLayout.setPadding(paddingBase + paddingDepth, holder.rootLayout.getPaddingTop(), 
+                    holder.rootLayout.getPaddingRight(), holder.rootLayout.getPaddingBottom());
 
-            // Show "└" branch symbol if it's a child element
-            if (node.depth > 0) {
-                holder.tvBranch.setVisibility(View.VISIBLE);
+            if (node.hasChildren()) {
+                holder.imgExpand.setVisibility(View.VISIBLE);
+                holder.imgExpand.setRotation(node.isExpanded ? 90f : 0f);
             } else {
-                holder.tvBranch.setVisibility(View.GONE);
+                holder.imgExpand.setVisibility(View.INVISIBLE);
             }
 
-            // Handle Click
-            holder.itemView.setOnClickListener(v -> {
+            holder.imgExpand.setOnClickListener(v -> {
+                node.isExpanded = !node.isExpanded;
+                
+                holder.imgExpand.animate().rotation(node.isExpanded ? 90f : 0f).setDuration(200).start();
+                
+                refreshDisplayList();
+                notifyDataSetChanged();
+            });
+
+            holder.rootLayout.setOnClickListener(v -> {
                 listener.onSelected(node.viewBean.id);
                 dismiss();
             });
@@ -176,21 +221,21 @@ public class ViewTreeDrawerDialog extends DialogFragment {
 
         @Override
         public int getItemCount() {
-            return treeNodesList.size();
+            return displayNodes.size();
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {
-            LinearLayout containerLayout;
-            TextView tvBranch, tvTitle, tvSubtitle;
-            ImageView imgIcon;
+            LinearLayout rootLayout;
+            TextView tvTitle, tvSubtitle;
+            ImageView imgExpand, imgIcon;
 
             public ViewHolder(@NonNull View itemView) {
                 super(itemView);
-                containerLayout = itemView.findViewById(R.id.container_layout);
-                tvBranch = itemView.findViewById(R.id.tv_branch);
+                rootLayout = itemView.findViewById(R.id.root_layout);
+                imgExpand = itemView.findViewById(R.id.img_expand);
+                imgIcon = itemView.findViewById(R.id.img_icon);
                 tvTitle = itemView.findViewById(R.id.tv_title);
                 tvSubtitle = itemView.findViewById(R.id.tv_subtitle);
-                imgIcon = itemView.findViewById(R.id.img_icon);
             }
         }
     }

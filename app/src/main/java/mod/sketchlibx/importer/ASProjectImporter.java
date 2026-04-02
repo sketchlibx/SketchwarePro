@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -122,30 +124,68 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                 return false;
             }
 
+            // --- 1. EXTRACT APP NAME & PACKAGE ACCURATELY ---
             String pkgName = "com.imported.project";
             String appName = "Imported App";
+            String iconResName = "ic_launcher";
+            boolean hasCustomIcon = false;
             
             File manifestFile = new File(asSrcMain, "AndroidManifest.xml");
+            String manifestContent = "";
             if (manifestFile.exists()) {
-                String manifestContent = FileUtil.readFile(manifestFile.getAbsolutePath());
+                manifestContent = FileUtil.readFile(manifestFile.getAbsolutePath());
                 Matcher pkgMatcher = Pattern.compile("package=\"([^\"]+)\"").matcher(manifestContent);
-                if (pkgMatcher.find()) {
-                    pkgName = pkgMatcher.group(1);
-                }
+                if (pkgMatcher.find()) pkgName = pkgMatcher.group(1);
+                
+                Matcher iconMatcher = Pattern.compile("android:icon=\"@(mipmap|drawable)/([^\"]+)\"").matcher(manifestContent);
+                if (iconMatcher.find()) iconResName = iconMatcher.group(2);
             }
 
             File stringsFile = new File(asSrcMain, "res/values/strings.xml");
-            if (stringsFile.exists()) {
-                String stringsContent = FileUtil.readFile(stringsFile.getAbsolutePath());
-                Matcher nameMatcher = Pattern.compile("<string name=\"app_name\">([^<]+)</string>").matcher(stringsContent);
-                if (nameMatcher.find()) {
-                    appName = nameMatcher.group(1);
+            String stringsContent = stringsFile.exists() ? FileUtil.readFile(stringsFile.getAbsolutePath()) : "";
+            
+            if (!manifestContent.isEmpty()) {
+                Matcher labelMatcher = Pattern.compile("android:label=\"@string/([^\"]+)\"").matcher(manifestContent);
+                if (labelMatcher.find()) {
+                    String strName = labelMatcher.group(1);
+                    Matcher strMatcher = Pattern.compile("<string name=\"" + strName + "\">([^<]+)</string>").matcher(stringsContent);
+                    if (strMatcher.find()) appName = strMatcher.group(1);
+                } else {
+                    labelMatcher = Pattern.compile("android:label=\"([^\"]+)\"").matcher(manifestContent);
+                    if (labelMatcher.find()) appName = labelMatcher.group(1);
+                }
+            }
+
+            String dataPath = wq.b(newScId);
+            String filesPath = dataPath + File.separator + "files";
+            FileUtil.makeDir(filesPath + File.separator + "java");
+            FileUtil.makeDir(filesPath + File.separator + "resource");
+            FileUtil.makeDir(filesPath + File.separator + "assets");
+            FileUtil.makeDir(filesPath + File.separator + "app-icon");
+
+            // --- 2. EXTRACT APP ICON ACCURATELY ---
+            File resDir = new File(asSrcMain, "res");
+            if (resDir.exists()) {
+                String[] mipmapFolders = {"mipmap-xxxhdpi", "mipmap-xxhdpi", "mipmap-xhdpi", "mipmap-hdpi", "mipmap-mdpi", "drawable-xxhdpi", "drawable-xhdpi", "drawable"};
+                for (String folder : mipmapFolders) {
+                    File targetIcon = new File(resDir, folder + File.separator + iconResName + ".png");
+                    if (targetIcon.exists()) {
+                        FileUtil.copyFile(targetIcon.getAbsolutePath(), filesPath + File.separator + "app-icon" + File.separator + "icon.png");
+                        hasCustomIcon = true;
+                        break;
+                    }
+                    targetIcon = new File(resDir, folder + File.separator + iconResName + ".webp");
+                    if (targetIcon.exists()) {
+                        FileUtil.copyFile(targetIcon.getAbsolutePath(), filesPath + File.separator + "app-icon" + File.separator + "icon.png");
+                        hasCustomIcon = true;
+                        break;
+                    }
                 }
             }
 
             HashMap<String, Object> projMap = new HashMap<>();
             projMap.put("sc_id", newScId);
-            projMap.put("my_ws_name", "Imported_" + appName.replaceAll("[^a-zA-Z0-9]", ""));
+            projMap.put("my_ws_name", appName.replaceAll("[^a-zA-Z0-9 ]", "").trim());
             projMap.put("my_app_name", appName);
             projMap.put("my_sc_pkg_name", pkgName);
             projMap.put("sc_ver_code", "1");
@@ -158,18 +198,24 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             projMap.put("my_sc_reg_dt", new nB().a("yyyyMMddHHmmss"));
             projMap.put("sketchware_ver", 158);
             projMap.put("isIconAdaptive", false);
-            projMap.put("custom_icon", false);
+            projMap.put("custom_icon", hasCustomIcon);
             lC.a(newScId, projMap);
-
-            String dataPath = wq.b(newScId);
-            String filesPath = dataPath + File.separator + "files";
-            FileUtil.makeDir(filesPath + File.separator + "java");
-            FileUtil.makeDir(filesPath + File.separator + "resource");
-            FileUtil.makeDir(filesPath + File.separator + "assets");
-            FileUtil.makeDir(filesPath + File.separator + "app-icon");
 
             Gson gson = new Gson();
             oB fileEncryptor = new oB();
+
+            // --- 3. SMART ACTIVITY SCANNER (Mapping Java to XML) ---
+            publishProgress("Scanning Java for Activities...");
+            File javaDir = new File(asSrcMain, "java");
+            if (!javaDir.exists()) javaDir = new File(asSrcMain, "kotlin");
+
+            ArrayList<String> activityLayouts = new ArrayList<>();
+            HashMap<String, File> layoutToJavaFileMap = new HashMap<>();
+            
+            if (javaDir.exists()) {
+                scanJavaFilesForLayouts(javaDir, layoutToJavaFileMap, activityLayouts);
+            }
+            activityLayouts.add("main"); // Ensure main is always an activity
 
             publishProgress("Parsing XML Layouts...");
             File layoutDir = new File(asSrcMain, "res/layout");
@@ -179,8 +225,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             StringBuilder logicStr = new StringBuilder();
             
             fileStr.append("@activity\n");
-
-            ArrayList<String> activityLayouts = new ArrayList<>();
             ArrayList<String> customViewLayouts = new ArrayList<>();
 
             if (layoutDir.exists() && layoutDir.isDirectory()) {
@@ -190,30 +234,42 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                         if (xml.getName().endsWith(".xml")) {
                             String rawName = xml.getName().replace(".xml", "");
                             
-                            boolean isActivity = rawName.equals("main") || rawName.startsWith("activity_");
-                            String fileName = rawName.startsWith("activity_") ? rawName.replace("activity_", "") : rawName;
+                            // It's an activity ONLY if it was found in Java scan or is "main"
+                            boolean isActivity = activityLayouts.contains(rawName);
                             
                             ViewBeanParser parser = new ViewBeanParser(xml);
                             parser.setSkipRoot(true);
                             ArrayList<ViewBean> parsedBeans = parser.parse();
 
-                            viewStr.append("@").append(fileName).append(".xml\n");
+                            viewStr.append("@").append(rawName).append(".xml\n");
                             for (ViewBean bean : parsedBeans) {
                                 viewStr.append(gson.toJson(bean)).append("\n");
                             }
 
                             if (isActivity) {
-                                activityLayouts.add(fileName);
-                                viewStr.append("@").append(fileName).append(".xml_fab\n").append(FAB_JSON).append("\n");
-                                fileStr.append("{\"fileName\":\"").append(fileName).append("\",\"fileType\":0,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
+                                viewStr.append("@").append(rawName).append(".xml_fab\n").append(FAB_JSON).append("\n");
+                                fileStr.append("{\"fileName\":\"").append(rawName).append("\",\"fileType\":0,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
                                 
-                                String javaName = getJavaName(fileName);
+                                String javaName = getJavaName(rawName);
                                 logicStr.append("@").append(javaName).append("_var\n");
                                 logicStr.append("@").append(javaName).append("_components\n");
                                 logicStr.append("@").append(javaName).append("_events\n");
                                 logicStr.append("{\"eventName\":\"initializeLogic\",\"eventType\":3,\"targetId\":\"initializeLogic\",\"targetType\":0}\n");
+                                
+                                // Process the mapped Java File for this activity into the ASD block
+                                File mappedJavaFile = layoutToJavaFileMap.get(rawName);
+                                if (mappedJavaFile != null && mappedJavaFile.exists()) {
+                                    String javaContent = FileUtil.readFile(mappedJavaFile.getAbsolutePath());
+                                    // Remove imports to prevent duplicate errors inside onCreate
+                                    javaContent = javaContent.replaceAll("package\\s+[^;]+;", "").replaceAll("import\\s+[^;]+;", "").trim();
+                                    String escapedContent = javaContent.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+                                    
+                                    String asdJson = "{\"color\":-10703429,\"id\":\"11\",\"nextBlock\":-1,\"opCode\":\"addSourceDirectly\",\"parameters\":[\"" + escapedContent + "\"],\"spec\":\"add source directly %s.str\",\"subStack1\":-1,\"subStack2\":-1,\"type\":\" \",\"typeName\":\"\"}\n";
+                                    logicStr.append("@").append(javaName).append("_onCreate_initializeLogic\n");
+                                    logicStr.append(asdJson);
+                                }
                             } else {
-                                customViewLayouts.add(fileName);
+                                customViewLayouts.add(rawName);
                             }
                         }
                     }
@@ -225,13 +281,10 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                 fileStr.append("{\"fileName\":\"").append(cv).append("\",\"fileType\":1,\"keyboardSetting\":0,\"options\":0,\"orientation\":0,\"theme\":-1}\n");
             }
 
-            publishProgress("Migrating Java Source...");
-            File javaDir = new File(asSrcMain, "java");
-            if (!javaDir.exists()) javaDir = new File(asSrcMain, "kotlin");
-            
+            publishProgress("Copying Extra Java Files...");
             if (javaDir.exists()) {
                 String targetJavaPath = filesPath + File.separator + "java";
-                copyAndFilterJavaFiles(javaDir, new File(targetJavaPath), logicStr, activityLayouts);
+                copyMiscJavaFiles(javaDir, new File(targetJavaPath), layoutToJavaFileMap);
             }
 
             fileEncryptor.a(dataPath + File.separator + "view", fileEncryptor.d(viewStr.toString()));
@@ -239,7 +292,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             fileEncryptor.a(dataPath + File.separator + "logic", fileEncryptor.d(logicStr.toString()));
 
             publishProgress("Processing Resources...");
-            File resDir = new File(asSrcMain, "res");
             StringBuilder resourceStr = new StringBuilder();
             resourceStr.append("@images\n");
 
@@ -257,9 +309,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                                     String resFullName = drawable.getName();
                                     String resName = resFullName.substring(0, resFullName.lastIndexOf("."));
                                     
-                                    if (drawable.getName().contains("ic_launcher")) {
-                                        FileUtil.copyFile(drawable.getAbsolutePath(), filesPath + File.separator + "app-icon" + File.separator + "icon.png");
-                                    } else {
+                                    if (!drawable.getName().contains("ic_launcher")) {
                                         File targetFile = new File(sketchwareImagesPath, resFullName);
                                         FileUtil.copyFile(drawable.getAbsolutePath(), targetFile.getAbsolutePath());
                                         resourceStr.append("{\"resFullName\":\"").append(resFullName).append("\",\"resName\":\"").append(resName).append("\",\"resType\":1}\n");
@@ -271,7 +321,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
                                 }
                             }
                         }
-                    } else if (dir.getName().startsWith("values") || dir.getName().startsWith("xml")) {
+                    } else if (dir.getName().startsWith("values") || dir.getName().startsWith("xml") || dir.getName().startsWith("font")) {
                         File targetDir = new File(filesPath + File.separator + "resource" + File.separator + dir.getName());
                         FileUtil.makeDir(targetDir.getAbsolutePath());
                         File[] valFiles = dir.listFiles();
@@ -288,11 +338,7 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             fileEncryptor.a(dataPath + File.separator + "resource", fileEncryptor.d(resourceStr.toString()));
 
             publishProgress("Setting up Firebase & Library...");
-            
-            String fbDbUrl = "";
-            String fbAppId = "";
-            String fbApiKey = "";
-            String fbProjectId = "";
+            String fbDbUrl = "", fbAppId = "", fbApiKey = "", fbProjectId = "";
             boolean useFb = false;
             
             File googleServicesFile = new File(asSrcMain.getParentFile().getParentFile(), "app/google-services.json");
@@ -319,7 +365,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
             }
             
             String firebaseDbData = "{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"" + fbDbUrl.replace("https://", "") + "\",\"libType\":0,\"reserved1\":\"" + fbAppId + "\",\"reserved2\":\"" + fbApiKey + "\",\"reserved3\":\"" + fbProjectId + ".appspot.com\",\"testDevices\":[],\"useYn\":\"" + (useFb ? "Y" : "N") + "\"}";
-
             String libraryStr = "@firebaseDB\n" + firebaseDbData + "\n" +
                     "@compat\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{\"material3\":true,\"dynamic_colors\":true,\"theme\":\"DayNight\"},\"data\":\"\",\"libType\":1,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"Y\"}\n" +
                     "@admob\n{\"adUnits\":[],\"appId\":\"\",\"configurations\":{},\"data\":\"\",\"libType\":2,\"reserved1\":\"\",\"reserved2\":\"\",\"reserved3\":\"\",\"testDevices\":[],\"useYn\":\"N\"}\n" +
@@ -358,9 +403,52 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         }
     }
 
+    // --- HELPER METHODS FOR SMART EXTRACTION ---
+
+    private void scanJavaFilesForLayouts(File dir, HashMap<String, File> map, ArrayList<String> activities) {
+        if (dir == null || !dir.exists()) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                scanJavaFilesForLayouts(f, map, activities);
+            } else if (f.getName().endsWith(".java") || f.getName().endsWith(".kt")) {
+                String content = FileUtil.readFile(f.getAbsolutePath());
+                Matcher m = Pattern.compile("R\\.layout\\.([a-zA-Z0-9_]+)").matcher(content);
+                if (m.find()) {
+                    String layoutName = m.group(1);
+                    map.put(layoutName, f);
+                    activities.add(layoutName);
+                }
+            }
+        }
+    }
+
+    private void copyMiscJavaFiles(File source, File targetMainDir, HashMap<String, File> activityJavaFiles) throws IOException {
+        if (source.isDirectory()) {
+            File[] children = source.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    copyMiscJavaFiles(child, targetMainDir, activityJavaFiles);
+                }
+            }
+        } else if (source.getName().endsWith(".java") || source.getName().endsWith(".kt")) {
+            // Copy ONLY if it's not mapped as an Activity (activities are moved to logic blocks)
+            if (!activityJavaFiles.containsValue(source)) { 
+                if (!targetMainDir.exists()) targetMainDir.mkdirs();
+                File targetFile = new File(targetMainDir, source.getName());
+                FileUtil.copyFile(source.getAbsolutePath(), targetFile.getAbsolutePath());
+            }
+        }
+    }
+
     private String getJavaName(String xmlName) {
         if (xmlName.equals("main")) return "MainActivity.java";
-        String[] parts = xmlName.replace("activity_", "").split("_");
+        String nameToProcess = xmlName;
+        if (nameToProcess.startsWith("activity_")) {
+            nameToProcess = nameToProcess.substring(9);
+        }
+        String[] parts = nameToProcess.split("_");
         StringBuilder javaName = new StringBuilder();
         for (String part : parts) {
             if (!part.isEmpty()) {
@@ -369,44 +457,6 @@ public class ASProjectImporter extends AsyncTask<Void, String, Boolean> {
         }
         javaName.append("Activity.java");
         return javaName.toString();
-    }
-
-    private void copyAndFilterJavaFiles(File source, File targetMainDir, StringBuilder logicStr, ArrayList<String> activityLayouts) throws IOException {
-        if (source.isDirectory()) {
-            String[] children = source.list();
-            if (children != null) {
-                for (String child : children) {
-                    copyAndFilterJavaFiles(new File(source, child), targetMainDir, logicStr, activityLayouts);
-                }
-            }
-        } else if (source.getName().endsWith(".java") || source.getName().endsWith(".kt")) {
-            boolean isActivityMatch = false;
-            String expectedJavaName = "";
-            for (String layout : activityLayouts) {
-                String potentialName = getJavaName(layout);
-                if (source.getName().equals(potentialName)) {
-                    isActivityMatch = true;
-                    expectedJavaName = potentialName; 
-                    break;
-                }
-            }
-
-            if (isActivityMatch) {
-                String javaContent = FileUtil.readFile(source.getAbsolutePath());
-                javaContent = javaContent.replaceAll("package\\s+[^;]+;", "").replaceAll("import\\s+[^;]+;", "").trim();
-                
-                String escapedContent = javaContent.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
-                
-                String asdJson = "{\"color\":-10703429,\"id\":\"11\",\"nextBlock\":-1,\"opCode\":\"addSourceDirectly\",\"parameters\":[\"" + escapedContent + "\"],\"spec\":\"add source directly %s.str\",\"subStack1\":-1,\"subStack2\":-1,\"type\":\" \",\"typeName\":\"\"}\n";
-                
-                logicStr.append("@").append(expectedJavaName).append("_onCreate_initializeLogic\n");
-                logicStr.append(asdJson);
-            } else {
-                if (!targetMainDir.exists()) targetMainDir.mkdirs();
-                File targetFile = new File(targetMainDir, source.getName());
-                FileUtil.copyFile(source.getAbsolutePath(), targetFile.getAbsolutePath());
-            }
-        }
     }
 
     private void extractZipFromUri(Activity context, Uri uri, String destFolder) throws IOException {

@@ -2,12 +2,14 @@ package com.besome.sketch.editor.manage.image;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
@@ -16,6 +18,7 @@ import androidx.viewpager.widget.ViewPager;
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 
 import a.a.a.MA;
 import a.a.a.Op;
@@ -107,8 +110,37 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         binding.viewPager.addOnPageChangeListener(this);
         binding.tabLayout.setupWithViewPager(binding.viewPager);
         
-        // Initial FAB state
         binding.fab.show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if (resultCode == Activity.RESULT_OK && data != null && data.hasExtra("iconNames")) {
+            ArrayList<String> names = data.getStringArrayListExtra("iconNames");
+            ArrayList<String> paths = data.getStringArrayListExtra("iconPaths");
+
+            if (names != null && paths != null && names.size() > 1) {
+                int color = data.getIntExtra("iconColor", 0);
+                String colorHex = data.getStringExtra("iconColorHex");
+
+                // Loop through each selected icon and trick the fragment 
+                // into processing them sequentially without knowing it's a bulk operation!
+                for (int i = 0; i < names.size(); i++) {
+                    Intent singleIntent = new Intent();
+                    singleIntent.putExtra("iconName", names.get(i));
+                    singleIntent.putExtra("iconPath", paths.get(i));
+                    singleIntent.putExtra("iconColor", color);
+                    singleIntent.putExtra("iconColorHex", colorHex);
+
+                    // Dispatch to fragment using the super method so Sketchware's internal requestCode mapping works perfectly
+                    super.onActivityResult(requestCode, resultCode, singleIntent);
+                }
+                return; // handled the bulk array, exit here.
+            }
+        }
+        
+        // Fallback for single items and other activities (like cropping, gallery picker, etc.)
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -131,13 +163,11 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         binding.layoutBtnImport.setVisibility(View.GONE);
 
         if (position == 0) {
-            // Project Images Tab
             showFabWithAnimation();
             if (collectionImagesFragment != null) {
                 collectionImagesFragment.unselectAll();
             }
         } else {
-            // Collection Images Tab
             hideFabWithAnimation();
             if (projectImagesFragment != null) {
                 projectImagesFragment.a(false);
@@ -145,7 +175,6 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         }
     }
 
-    // Smooth FAB animations
     private void showFabWithAnimation() {
         binding.fab.setVisibility(View.VISIBLE);
         binding.fab.animate().translationY(0F).alpha(1.0f).setDuration(200L).start();
@@ -157,7 +186,6 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         }).start();
     }
 
-    // Expose binding so Fragments (pu, fu) can easily access action buttons without findViewById
     public ManageImageBinding getBinding() {
         return binding;
     }
