@@ -1,6 +1,5 @@
 package pro.sketchware.fragments.settings.appearance;
 
-import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,7 +35,6 @@ public class SettingsAppearanceFragment extends qA {
         setupToolbar();
         initializeThemeSettings();
         setupClickListeners();
-        setupPersonalizationSettings();
 
         {
             View view1 = binding.content;
@@ -85,41 +83,6 @@ public class SettingsAppearanceFragment extends qA {
         updateThemeCardSelection(ThemeManager.getCurrentTheme(requireContext()));
 
         setThemeCardsEnabled(!isSystemTheme);
-    }
-    
-    private void setupPersonalizationSettings() {
-        // Setup Dynamic Colors (Only visible for Android 12+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.cardDynamicColors.setVisibility(View.VISIBLE);
-            binding.switchDynamicColors.setChecked(ThemeManager.isDynamicColorsEnabled(requireContext()));
-            
-            binding.cardDynamicColors.setOnClickListener(v -> binding.switchDynamicColors.performClick());
-            
-            binding.switchDynamicColors.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (!isInitializing) {
-                    ThemeManager.setDynamicColorsEnabled(requireContext(), isChecked);
-                    requireActivity().recreate(); // Reload UI to apply colors
-                }
-            });
-        } else {
-            binding.cardDynamicColors.setVisibility(View.GONE);
-        }
-
-        // Setup Pure Black AMOLED mode
-        binding.switchPureBlack.setChecked(ThemeManager.isPureBlackEnabled(requireContext()));
-        
-        binding.cardPureBlack.setOnClickListener(v -> binding.switchPureBlack.performClick());
-        
-        binding.switchPureBlack.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (!isInitializing) {
-                ThemeManager.setPureBlackEnabled(requireContext(), isChecked);
-                // Recreate only if current theme is actually dark to see the immediate effect
-                if (ThemeManager.getCurrentTheme(requireContext()) == ThemeManager.THEME_DARK || 
-                   (binding.switchSystem.isChecked() && ThemeManager.getSystemAppliedTheme(requireContext()) == ThemeManager.THEME_DARK)) {
-                    requireActivity().recreate();
-                }
-            }
-        });
     }
 
     private void setupClickListeners() {

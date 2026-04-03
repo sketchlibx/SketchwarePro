@@ -32,8 +32,8 @@
             android:paddingHorizontal="24dp"
             android:paddingBottom="16dp">
 
-            <CheckBox
-                android:id="@+id/cb_force_androidx"
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_force_androidx"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -41,12 +41,30 @@
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="16sp" />
 
-            <CheckBox
-                android:id="@+id/cb_java_to_kotlin"
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_java_to_kotlin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Java to Kotlin Conversion (On Compile)"
+                android:text="Java to Kotlin Conversion"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="16sp" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_custom_java"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Custom Java Class"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="16sp" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_custom_manifest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Custom Manifest"
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="16sp" />
 
@@ -72,22 +90,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Run Project Analyzer" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_custom_java"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Manage Custom Java" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_custom_manifest"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Manage Custom Manifest" />
 
         </LinearLayout>
     </ScrollView>
