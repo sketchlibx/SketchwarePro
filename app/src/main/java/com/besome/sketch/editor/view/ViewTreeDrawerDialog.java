@@ -1,16 +1,20 @@
 package com.besome.sketch.editor.view;
 
+import android.app.Dialog;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.HorizontalScrollView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -27,12 +31,14 @@ import java.util.HashMap;
 import java.util.List;
 
 import pro.sketchware.R;
+import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.utility.ThemeUtils;
 
 public class ViewTreeDrawerDialog extends DialogFragment {
 
     private final ArrayList<ViewBean> currentViews;
     private final OnViewSelectedListener listener;
-    
+
     private final List<TreeNode> rootNodes = new ArrayList<>();
     private final List<TreeNode> displayNodes = new ArrayList<>();
     private TreeAdapter adapter;
@@ -46,75 +52,95 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         this.listener = listener;
     }
 
+    @NonNull
+    @Override
+    public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        Dialog dialog = super.onCreateDialog(savedInstanceState);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.requestFeature(Window.FEATURE_NO_TITLE);
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        return dialog;
+    }
+
     @Override
     public void onStart() {
         super.onStart();
         Window window = getDialog().getWindow();
         if (window != null) {
+            // Full height, Left Gravity like a navigation drawer
             window.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.START);
-            window.setBackgroundDrawableResource(android.R.color.transparent);
             window.setWindowAnimations(R.style.Animation_Design_BottomSheetDialog);
+            
+            // Apply dim behind the dialog
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.dimAmount = 0.5f;
+            window.setAttributes(params);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         }
     }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        
+        // 1. Root Layout (Matching DesignDrawer dimensions & style)
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setLayoutParams(new ViewGroup.LayoutParams(
-                (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 320, getResources().getDisplayMetrics()),
-                ViewGroup.LayoutParams.MATCH_PARENT));
+        root.setLayoutParams(new ViewGroup.LayoutParams(SketchwareUtil.dpToPx(300), ViewGroup.LayoutParams.MATCH_PARENT));
 
-        TypedValue typedValue = new TypedValue();
-        requireContext().getTheme().resolveAttribute(R.attr.colorSurfaceContainerLow, typedValue, true);
-        
+        // Apply MaterialShapeDrawable for Top-Right & Bottom-Right rounded corners
         ShapeAppearanceModel shape = ShapeAppearanceModel.builder()
-                .setTopRightCornerSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics()))
-                .setBottomRightCornerSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics()))
+                .setTopRightCornerSize(SketchwareUtil.getDip(24))
+                .setBottomRightCornerSize(SketchwareUtil.getDip(24))
                 .build();
+                
         MaterialShapeDrawable background = new MaterialShapeDrawable(shape);
-        background.setFillColor(android.content.res.ColorStateList.valueOf(typedValue.data));
-        background.setElevation(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 3, getResources().getDisplayMetrics()));
+        background.setFillColor(ColorStateList.valueOf(ThemeUtils.getColor(requireContext(), R.attr.colorSurfaceContainerLow)));
+        background.initializeElevationOverlay(requireContext());
         root.setBackground(background);
+        root.setElevation(SketchwareUtil.dpToPx(3));
 
-        // Header: "Component Tree"
+        // 2. Header: "Component Tree"
         TextView header = new TextView(requireContext());
         header.setText("Component Tree");
         header.setTextSize(18);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
-        requireContext().getTheme().resolveAttribute(R.attr.colorOnSurface, typedValue, true);
-        header.setTextColor(typedValue.data);
-        
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
-        header.setPadding(padding, padding + 8, padding, padding);
+        header.setTextColor(ThemeUtils.getColor(requireContext(), R.attr.colorOnSurface));
+        int padding = SketchwareUtil.dpToPx(20);
+        header.setPadding(padding, padding + SketchwareUtil.dpToPx(8), padding, padding);
         root.addView(header);
 
-        // Divider
+        // 3. Divider
         View divider = new View(requireContext());
-        requireContext().getTheme().resolveAttribute(R.attr.colorSurfaceContainerHighest, typedValue, true);
-        divider.setBackgroundColor(typedValue.data);
-        root.addView(divider, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, getResources().getDisplayMetrics())));
+        divider.setBackgroundColor(ThemeUtils.getColor(requireContext(), R.attr.colorOutlineVariant));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, SketchwareUtil.dpToPx(1));
+        dividerParams.setMargins(padding, 0, padding, 0);
+        root.addView(divider, dividerParams);
 
+        // 4. Horizontal Scroll Wrap (For deeply nested items)
         HorizontalScrollView hsv = new HorizontalScrollView(requireContext());
         hsv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f));
         hsv.setFillViewport(true);
 
+        // 5. RecyclerView
         RecyclerView rv = new RecyclerView(requireContext());
         rv.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
         rv.setLayoutManager(new LinearLayoutManager(getContext()));
         rv.setClipToPadding(false);
-        rv.setPadding(0, 0, 0, padding);
-        
+        rv.setPadding(0, SketchwareUtil.dpToPx(8), padding, padding);
+
         buildTree();
         refreshDisplayList();
-        
+
         adapter = new TreeAdapter();
         rv.setAdapter(adapter);
-        
+
         hsv.addView(rv);
         root.addView(hsv);
+
         return root;
     }
 
@@ -137,7 +163,7 @@ public class ViewTreeDrawerDialog extends DialogFragment {
 
     private TreeNode createNode(ViewBean view, HashMap<String, List<ViewBean>> childrenMap, int depth) {
         TreeNode node = new TreeNode(view, depth);
-        node.isExpanded = true; 
+        node.isExpanded = true;
 
         List<ViewBean> children = childrenMap.get(view.id);
         if (children != null) {
@@ -192,19 +218,25 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             TreeNode node = displayNodes.get(position);
-            
+
             holder.tvTitle.setText(node.viewBean.id);
-            
-            String typeName = ViewBean.getViewTypeName(node.viewBean.type);
+
+            String typeName = "Unknown"; // Default fallback
+            // Safe logic for reflection/string extraction
+            try {
+                typeName = node.viewBean.getClassInfo().getSimpleName();
+            } catch (Exception ignored) { }
+
             if (node.viewBean.customView != null && !node.viewBean.customView.isEmpty() && !node.viewBean.customView.equals("none") && !node.viewBean.customView.equals("NONE")) {
                 typeName += " (" + node.viewBean.customView + ")";
             }
             holder.tvSubtitle.setText(typeName);
-            holder.imgIcon.setImageResource(ViewBean.getViewTypeResId(node.viewBean.type));
+            
+            holder.imgIcon.setImageResource(ViewBean.getViewTypeResId(node.viewBean.type)); 
 
-            int paddingBase = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, getResources().getDisplayMetrics());
-            int paddingDepth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 24, getResources().getDisplayMetrics());
-            holder.rootLayout.setPadding(paddingBase + paddingDepth, holder.rootLayout.getPaddingTop(), 
+            int paddingBase = SketchwareUtil.dpToPx(16);
+            int paddingDepth = SketchwareUtil.dpToPx(node.depth * 24); // 24dp indentation per depth level
+            holder.rootLayout.setPadding(paddingBase + paddingDepth, holder.rootLayout.getPaddingTop(),
                     holder.rootLayout.getPaddingRight(), holder.rootLayout.getPaddingBottom());
 
             if (node.hasChildren()) {

@@ -64,7 +64,6 @@ public class ViewBeanParser {
     public static String generateUniqueId(Set<String> ids, int type, String className) {
         String prefix = wq.b(type);
         var name = ViewBean.getViewTypeName(type);
-        //noinspection ConstantValue
         if (type != ViewBean.VIEW_TYPE_LAYOUT_VSCROLLVIEW
                 || type != ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW) {
             if (prefix.equals("linear")
@@ -118,14 +117,14 @@ public class ViewBeanParser {
 
         int type = ViewBean.getViewTypeByTypeName(className);
 
-        // PRO FIX: Smart Mapping for Custom Widgets during Copy-Paste
+        // PRO FIX: Smart Mapping for Custom Widgets
         if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !className.equals("LinearLayout")) {
             if (className.contains("Switch")) type = ViewBean.VIEW_TYPE_WIDGET_SWITCH;
-            else if (className.contains("ProgressIndicator") || className.contains("ProgressBar")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
-            else if (className.contains("CheckBox")) type = ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
+            else if (className.contains("ProgressIndicator") || className.contains("ProgressBar") || className.contains("LoadingIndicator")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
+            else if (className.contains("CheckBox") || className.contains("Chip")) type = ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
             else if (className.contains("Slider") || className.contains("SeekBar")) type = ViewBean.VIEW_TYPE_WIDGET_SEEKBAR;
             else if (className.contains("Button")) type = ViewBean.VIEW_TYPE_WIDGET_BUTTON;
-            else if (className.contains("TextView")) type = ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
+            else if (className.contains("TextView") || className.contains("AutoComplete")) type = ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
             else if (className.contains("ImageView")) type = ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
             else if (className.contains("CardView")) type = 36;
             else if (className.contains("RecyclerView")) type = 48;
@@ -218,7 +217,10 @@ public class ViewBeanParser {
                     if (oldLayout != null) {
                         for (ViewBean oldBean : oldLayout) {
                             if (oldBean.id.equals(id)) {
-                                type = oldBean.type;
+                                // FIXED BUG: Only overwrite type if it's generic
+                                if (type == 0 || type == 14) {
+                                    type = oldBean.type;
+                                }
                                 isCustom = oldBean.isCustomWidget;
                                 customView = oldBean.customView;
                                 convert = oldBean.convert;
@@ -279,7 +281,6 @@ public class ViewBeanParser {
                     bean.parentAttributes = new HashMap<>();
                 }
                 
-                // Using LinkedHashMap to absolutely prevent duplicates
                 Map<String, String> injectMap = new LinkedHashMap<>();
                 
                 for (Map.Entry<String, String> entry : attr.entrySet()) {
@@ -325,7 +326,6 @@ public class ViewBeanParser {
                     }
                 }
                 
-                // Rebuild inject string perfectly without duplicates
                 StringBuilder injectBuilder = new StringBuilder();
                 for (Map.Entry<String, String> entry : injectMap.entrySet()) {
                     if (injectBuilder.length() > 0) injectBuilder.append("\n");

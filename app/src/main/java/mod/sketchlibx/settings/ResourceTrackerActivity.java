@@ -32,7 +32,10 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
     private RecyclerView recyclerView;
     private TrackerAdapter adapter;
     private List<ProjectAnalyzerEngine.UnusedResource> currentList = new ArrayList<>();
-    private TextView emptyStateText;
+    
+    private View contentLayout;
+    private View noContentLayout;
+    private ExtendedFloatingActionButton fabCleanAll;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -47,11 +50,13 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
-        emptyStateText = findViewById(R.id.tv_empty_state);
+        contentLayout = findViewById(R.id.contentLayout);
+        noContentLayout = findViewById(R.id.noContentLayout);
+        fabCleanAll = findViewById(R.id.fab_clean_all);
+        
         recyclerView = findViewById(R.id.rv_resources);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        ExtendedFloatingActionButton fabCleanAll = findViewById(R.id.fab_clean_all);
         fabCleanAll.setOnClickListener(v -> {
             if (currentList.isEmpty()) {
                 SketchwareUtil.toast("Nothing to clean!");
@@ -84,13 +89,19 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
             adapter.notifyDataSetChanged();
         }
 
+        updateUIState();
+    }
+
+    private void updateUIState() {
         if (currentList.isEmpty()) {
-            emptyStateText.setVisibility(View.VISIBLE);
-            recyclerView.setVisibility(View.GONE);
+            noContentLayout.setVisibility(View.VISIBLE);
+            contentLayout.setVisibility(View.GONE);
+            fabCleanAll.hide();
             getSupportActionBar().setSubtitle("Project is fully optimized");
         } else {
-            emptyStateText.setVisibility(View.GONE);
-            recyclerView.setVisibility(View.VISIBLE);
+            noContentLayout.setVisibility(View.GONE);
+            contentLayout.setVisibility(View.VISIBLE);
+            fabCleanAll.show();
             getSupportActionBar().setSubtitle(currentList.size() + " Unused Items Found");
         }
     }
@@ -142,14 +153,8 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
                             currentList.remove(position);
                             notifyItemRemoved(position);
                             notifyItemRangeChanged(position, currentList.size());
-
-                            if (currentList.isEmpty()) {
-                                emptyStateText.setVisibility(View.VISIBLE);
-                                recyclerView.setVisibility(View.GONE);
-                                getSupportActionBar().setSubtitle("Project is fully optimized");
-                            } else {
-                                getSupportActionBar().setSubtitle(currentList.size() + " Unused Items Found");
-                            }
+                            
+                            updateUIState();
                         })
                         .setNegativeButton("Cancel", null)
                         .show();

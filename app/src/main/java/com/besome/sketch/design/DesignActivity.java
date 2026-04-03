@@ -518,9 +518,11 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             return true;
         });
         
-        bottomMenu.add(Menu.NONE, 9, Menu.NONE, "Edit Custom Java").setOnMenuItemClickListener(item -> {
-            toCustomJavaEditor();
-            return true;
+        bottomMenu.add(Menu.NONE, 9, Menu.NONE, "Edit Custom Java")
+            .setVisible(false) // Fixed: Hidden by default on launch
+            .setOnMenuItemClickListener(item -> {
+                toCustomJavaEditor();
+                return true;
         });
 
         bottomMenu.add(Menu.NONE, 4, Menu.NONE, "Install last built APK").setVisible(false).setOnMenuItemClickListener(item -> {
@@ -833,6 +835,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
     private void toCustomJavaEditor() {
         if (projectFile == null) return;
+        
+        // Fixed: Explicit check ensuring Custom Java is on before proceeding
+        boolean isCustomJavaEnabled = new ProjectSettings(sc_id).getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, "false").equals("true");
+        if (!isCustomJavaEnabled) {
+            SketchwareUtil.toastError("Custom Java is disabled. Enable it in Advanced Settings first.");
+            return;
+        }
+        
         k();
         new Thread(() -> {
             String tempJavaFileName = projectFile.getJavaName();
@@ -1084,8 +1094,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 onProgress("Generating view binding...", 11);
                 builder.generateViewBinding();
                 if (canceled) return;
-                KotlinCompilerBridge.compileKotlinCodeIfPossible(this, builder);
-                if (canceled) return;
+                
+                // Fixed: Added Kotlin logic conditional check based on settings
+                boolean isKotlinEnabled = new ProjectSettings(sc_id).getValue(ProjectSettings.SETTING_JAVA_TO_KOTLIN, "false").equals("true");
+                if (isKotlinEnabled) {
+                    KotlinCompilerBridge.compileKotlinCodeIfPossible(this, builder);
+                    if (canceled) return;
+                }
+                
                 onProgress("Java is compiling...", 13);
                 builder.compileJavaCode();
                 if (canceled) return;

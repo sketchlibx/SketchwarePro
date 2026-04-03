@@ -23,29 +23,33 @@ public class ViewBeanFactory {
     }
 
     public static int getConsideredTypeViewByName(String name, int def) {
+        // PRO FIX: Mapping all M3 components perfectly to their native UI Types
         return switch (name) {
-            //Add more here
-            case "MaterialSwitch" -> ViewBean.VIEW_TYPE_WIDGET_SWITCH;
+            case "MaterialSwitch", "SwitchMaterial" -> ViewBean.VIEW_TYPE_WIDGET_SWITCH;
             case "MaterialCardView", "CardView" -> ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW;
             case "TextInputEditText" -> ViewBean.VIEW_TYPE_WIDGET_EDITTEXT;
-            //idk should I use ImageView(ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW) or Button(ViewBean.VIEW_TYPE_WIDGET_BUTTON)?
-            case "ImageButton" -> ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
+            case "TextInputLayout" -> ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+            case "MaterialButton", "ExtendedFloatingActionButton" -> ViewBean.VIEW_TYPE_WIDGET_BUTTON;
+            case "MaterialTextView" -> ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
+            case "MaterialCheckBox", "Chip" -> ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
+            case "ImageButton", "ShapeableImageView" -> ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
             case "NestedScrollView" -> ViewBean.VIEW_TYPE_LAYOUT_VSCROLLVIEW;
+            case "MaterialRadioButton" -> ViewBeans.VIEW_TYPE_WIDGET_RADIOBUTTON;
+            case "Slider", "MaterialSlider" -> ViewBean.VIEW_TYPE_WIDGET_SEEKBAR;
+            case "CircularProgressIndicator", "LinearProgressIndicator", "LoadingIndicator" -> ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
+            case "AutoCompleteTextView" -> ViewBeans.VIEW_TYPE_WIDGET_AUTOCOMPLETETEXTVIEW;
             default -> def;
         };
     }
 
     public void applyAttributes(Map<String, String> attributes) {
         Map<String, String> injectAttributes = new LinkedHashMap<>();
-        // Skip processing if the convert type is "include,"
-        // because a.a.a.Ox doesn't generate all the attributes below.
-        // Instead, the `inject` property will handle the attributes.
+        
         if ("include".equals(bean.convert)) {
             StringBuilder injectProperty = new StringBuilder();
             for (Map.Entry<String, String> entry : attributes.entrySet()) {
                 var attrName = entry.getKey();
                 var attrValue = entry.getValue();
-                // Skip this because ViewBeanParser has already handled it as the ID of the include for ViewBean.
                 if (attrName.equals("layout")) {
                     continue;
                 }
@@ -136,13 +140,10 @@ public class ViewBeanFactory {
             var attrValue = entry.getValue();
             var reference = parseReferName(attrName, ":");
             if (!AttributeConstants.BUILT_IN_ATTRIBUTES.contains(reference)) {
-                // This attribute wasn't included in built-in attributes intentionally
                 if (attrName.equals("style")
                         && bean.type == ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR) {
-                    // Skip this since only progressbar have this attribute in ViewBean
                     continue;
                 }
-                // Skip and handle relative parent attributes separately
                 if (isRelativeAttr(attrName)) {
                     bean.parentAttributes.put(attrName, parseReferName(attrValue, "/"));
                     continue;
@@ -150,7 +151,6 @@ public class ViewBeanFactory {
                 if (attrName.equals("tools:listitem")) {
                     continue;
                 }
-                // add attributes for inject property
                 injectAttributes.put(attrName, attrValue);
             }
         }
@@ -365,7 +365,6 @@ public class ViewBeanFactory {
                 //noinspection StatementWithEmptyBody
                 if (adUnitId != null) {
                     // This can probably be ignored since it's auto-generated
-                    // bean.adUnitId = "debug : " + adUnitId;
                 }
             }
         }

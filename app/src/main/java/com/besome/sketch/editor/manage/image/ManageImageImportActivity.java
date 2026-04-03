@@ -2,6 +2,7 @@ package com.besome.sketch.editor.manage.image;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,6 +33,8 @@ import a.a.a.mB;
 import a.a.a.uq;
 import mod.hey.studios.util.Helper;
 import pro.sketchware.R;
+import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.utility.ThemeUtils;
 
 public class ManageImageImportActivity extends BaseAppCompatActivity implements View.OnClickListener {
     private ImageView img;
@@ -249,14 +252,20 @@ public class ManageImageImportActivity extends BaseAppCompatActivity implements 
             } else {
                 viewHolder.img_conflict.setImageResource(R.drawable.ic_ok_48dp);
             }
+            
             if (position == selectedItem) {
-                viewHolder.img.setBackgroundResource(R.drawable.bg_outline_dark_yellow);
+                GradientDrawable border = new GradientDrawable();
+                border.setColor(Color.TRANSPARENT);
+                border.setStroke(SketchwareUtil.dpToPx(2), ThemeUtils.getColor(getApplicationContext(), R.attr.colorPrimary));
+                border.setCornerRadius(SketchwareUtil.dpToPx(4));
+                viewHolder.layout_item.setBackground(border);
             } else {
-                viewHolder.img.setBackgroundColor(Color.parseColor("#ffffff"));
+                viewHolder.layout_item.setBackgroundColor(Color.TRANSPARENT);
             }
+            viewHolder.img.setBackgroundColor(Color.TRANSPARENT);
+
             Glide.with(getApplicationContext())
                     .load(projectResourceBean.resFullName)
-                    //.asBitmap()
                     .centerCrop()
                     .error(R.drawable.ic_remove_grey600_24dp)
                     .into(new BitmapImageViewTarget(viewHolder.img).getView());

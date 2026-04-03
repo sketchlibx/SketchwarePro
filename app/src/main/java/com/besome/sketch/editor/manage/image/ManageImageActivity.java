@@ -115,7 +115,7 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
 
     private void processImportQueue(int index, ArrayList<String> names, ArrayList<String> paths, int color, String colorHex, int requestCode, int resultCode) {
         if (index >= names.size()) {
-            SketchwareUtil.toast("Imported " + names.size() + " icons successfully!");
+            // Removed redundant toast as requested!
             return;
         }
 
@@ -127,9 +127,9 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
         
         super.onActivityResult(requestCode, resultCode, singleIntent);
 
-        // Queue the next item sequentially after a short UI delay to prevent intent overrides
+        // Increased delay to 500ms to safely process large queues without dropping items
         new Handler(Looper.getMainLooper()).postDelayed(() -> 
-            processImportQueue(index + 1, names, paths, color, colorHex, requestCode, resultCode), 100);
+            processImportQueue(index + 1, names, paths, color, colorHex, requestCode, resultCode), 500L);
     }
 
     @Override
@@ -142,7 +142,6 @@ public class ManageImageActivity extends BaseAppCompatActivity implements ViewPa
                 int color = data.getIntExtra("iconColor", 0);
                 String colorHex = data.getStringExtra("iconColorHex");
 
-                // Start the sequential processing queue
                 processImportQueue(0, names, paths, color, colorHex, requestCode, resultCode);
                 return;
             }

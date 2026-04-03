@@ -397,7 +397,7 @@ public class AddImageActivity extends BaseDialogActivity implements View.OnClick
                         var imageName = Helper.getText(activity.ed_input_edittext).trim() + "_" + ++i;
                         var imageFilePath = HB.a(activity.getApplicationContext(), uri);
                         if (imageFilePath == null) {
-                            return;
+                            continue; // Fix applied here!
                         }
                         var image = new ProjectResourceBean(ProjectResourceBean.PROJECT_RES_TYPE_FILE,
                                 imageName, imageFilePath);
@@ -415,8 +415,6 @@ public class AddImageActivity extends BaseDialogActivity implements View.OnClick
                     activity.images.addAll(toAdd);
                 }
             } catch (Exception e) {
-                // the bytecode's lying
-                // noinspection ConstantValue
                 if (e instanceof yy yy) {
                     var errorMessage = yy.getMessage();
                     var code = switch (errorMessage) {

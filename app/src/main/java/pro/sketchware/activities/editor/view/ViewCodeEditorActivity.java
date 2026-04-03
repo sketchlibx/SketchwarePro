@@ -215,7 +215,6 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
     private void save() {
         try {
             if (isContentModified()) {
-                // Pass oldLayout so custom views retain their properties
                 ArrayList<ViewBean> oldLayout = jC.a(sc_id).d(filename);
                 var parser = new ViewBeanParser(editor.getText().toString(), oldLayout);
                 parser.setSkipRoot(true);
@@ -244,7 +243,6 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
         } catch (Exception e) {
             SketchwareUtil.toastError(e.toString());
         }
-
     }
 
     private boolean isContentModified() {
@@ -258,13 +256,14 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             parser.setSkipRoot(true);
             var parsedLayout = parser.parse();
             
-            // Restore visual identity AND clear cached class info to prevent ClassCastException
             if (oldLayout != null) {
                 for (ViewBean newBean : parsedLayout) {
                     for (ViewBean oldBean : oldLayout) {
                         if (newBean.id.equals(oldBean.id)) {
-                            newBean.type = oldBean.type;
-                            newBean.clearClassInfo(); 
+                            if (newBean.type == 0 || newBean.type == 14) {
+                                newBean.type = oldBean.type;
+                                newBean.clearClassInfo(); 
+                            }
                             newBean.parentType = oldBean.parentType;
                             newBean.parentClassInfo = null; 
                             newBean.isCustomWidget = oldBean.isCustomWidget;

@@ -40,36 +40,43 @@ import pro.sketchware.utility.relativelayout.CircularDependencyDetector;
 
 @SuppressLint("ViewConstructor")
 public class PropertyAttributesItem extends LinearLayout implements View.OnClickListener {
+    
     private static final String[] PARENT_RELATIVE = {
             "android:layout_centerInParent",
-
             "android:layout_centerVertical", "android:layout_centerHorizontal",
-
             "android:layout_toStartOf", "android:layout_toEndOf",
             "android:layout_toLeftOf", "android:layout_toRightOf",
-
             "android:layout_above", "android:layout_below",
             "android:layout_alignStart", "android:layout_alignEnd",
             "android:layout_alignLeft", "android:layout_alignRight",
             "android:layout_alignTop", "android:layout_alignBottom",
-
             "android:layout_alignParentStart", "android:layout_alignParentEnd",
             "android:layout_alignParentLeft", "android:layout_alignParentRight",
             "android:layout_alignParentTop", "android:layout_alignParentBottom",
-
             "android:layout_alignBaseline"
     };
+    
     public static List<String> RELATIVE_IDS = Arrays.asList(
             "android:layout_alignStart", "android:layout_alignEnd",
             "android:layout_alignLeft", "android:layout_alignRight",
             "android:layout_alignTop", "android:layout_alignBottom",
-
             "android:layout_alignBaseline",
-
             "android:layout_toStartOf", "android:layout_toEndOf",
             "android:layout_toLeftOf", "android:layout_toRightOf",
             "android:layout_above", "android:layout_below"
     );
+
+    private static final String[] PARENT_CONSTRAINT = {
+            "app:layout_constraintTop_toTopOf", "app:layout_constraintTop_toBottomOf",
+            "app:layout_constraintBottom_toTopOf", "app:layout_constraintBottom_toBottomOf",
+            "app:layout_constraintStart_toStartOf", "app:layout_constraintStart_toEndOf",
+            "app:layout_constraintEnd_toStartOf", "app:layout_constraintEnd_toEndOf",
+            "app:layout_constraintLeft_toLeftOf", "app:layout_constraintLeft_toRightOf",
+            "app:layout_constraintRight_toLeftOf", "app:layout_constraintRight_toRightOf",
+            "app:layout_constraintBaseline_toBaselineOf"
+    };
+
+    public static List<String> CONSTRAINT_IDS = Arrays.asList(PARENT_CONSTRAINT);
 
     private final ArrayList<ViewBean> beans = new ArrayList<>();
     private String key = "";
@@ -95,10 +102,6 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
         imgLeftIcon = findViewById(R.id.img_left_icon);
         propertyItem = findViewById(R.id.property_item);
         propertyMenuItem = findViewById(R.id.property_menu_item);
-//        if (z) {
-//            propertyMenuItem.setOnClickListener(this);
-//            propertyMenuItem.setSoundEffectsEnabled(true);
-//        }
     }
 
     public String getKey() {
@@ -165,6 +168,20 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
         showParentAttributes();
     }
 
+    private boolean isParentConstraintLayout() {
+        if (bean == null || bean.parent == null) return false;
+        for (ViewBean b : beans) {
+            if (b.id.equals(bean.parent)) {
+                String className = "";
+                try { className = b.getClassInfo().getSimpleName(); } catch (Exception ignored) {}
+                if (b.convert != null && b.convert.contains("ConstraintLayout")) return true;
+                return (className != null && className.contains("ConstraintLayout")) || 
+                       (b.customView != null && b.customView.contains("ConstraintLayout"));
+            }
+        }
+        return false;
+    }
+
     private void showParentAttributes() {
         BottomSheetDialog dialog = new BottomSheetDialog(getContext());
         var binding = PropertyPopupParentAttrBinding.inflate(LayoutInflater.from(getContext()));
@@ -180,30 +197,38 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
         List<String> keys = new ArrayList<>(value.keySet());
         adapter.submitList(keys);
 
+        boolean isConstraint = isParentConstraintLayout();
+        String[] attributesToUse = isConstraint ? PARENT_CONSTRAINT : PARENT_RELATIVE;
+
         binding.add.setOnClickListener(v -> {
             List<String> list = new ArrayList<>();
-            for (String attr : PARENT_RELATIVE) {
+            for (String attr : attributesToUse) {
                 if (!value.containsKey(attr)) {
                     list.add(attr);
                 }
             }
             new MaterialAlertDialogBuilder(getContext())
-                    .setTitle("Choose an attributes")
+                    .setTitle(isConstraint ? "Choose a Constraint" : "Choose an Attribute")
                     .setAdapter(
                             new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, list), (d, w) -> {
                                 var attr = list.get(w);
-                                if (RELATIVE_IDS.contains(attr)) {
+                                if (RELATIVE_IDS.contains(attr) || CONSTRAINT_IDS.contains(attr)) {
+                                    
+                                    List<String> availableIds = new ArrayList<>(ids);
+                                    if (isConstraint) availableIds.add(0, "parent");
+
                                     new MaterialAlertDialogBuilder(getContext())
-                                            .setTitle("Choose an id")
-                                            .setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, ids), (d2, w2) -> {
-                                                var id = ids.get(w2);
-                                                if (new CircularDependencyDetector(beans, bean).isLegalAttribute(id, attr)) {
+                                            .setTitle("Choose a Target")
+                                            .setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, availableIds), (d2, w2) -> {
+                                                var id = availableIds.get(w2);
+                                                
+                                                if (isConstraint || new CircularDependencyDetector(beans, bean).isLegalAttribute(id, attr)) {
                                                     value.put(attr, id);
                                                     if (valueChangeListener != null)
                                                         valueChangeListener.a(key, value);
                                                     adapter.submitList(new ArrayList<>(value.keySet()));
                                                 } else {
-                                                    SketchwareUtil.toastError("IllegalStateException : Circular dependencies cannot exist in RelativeLayout");
+                                                    SketchwareUtil.toastError("IllegalStateException : Circular dependencies cannot exist");
                                                 }
                                             })
                                             .setNegativeButton("Cancel", (d2, which) -> d.dismiss())
@@ -240,7 +265,7 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
 
         @Override
         public int getItemViewType(int position) {
-            if (RELATIVE_IDS.contains(getItem(position))) {
+            if (RELATIVE_IDS.contains(getItem(position)) || CONSTRAINT_IDS.contains(getItem(position))) {
                 return 1;
             } else {
                 return 0;
@@ -277,24 +302,40 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
 
             void bind(String attr) {
                 binding.tvName.setText(attr);
-                binding.tvValue.setText("@id/" + value.get(attr));
+                
+                String val = value.get(attr);
+                if ("parent".equals(val) || "true".equals(val) || "false".equals(val)) {
+                    binding.tvValue.setText(val);
+                } else {
+                    binding.tvValue.setText("@id/" + val);
+                }
+                
                 binding.imgLeftIcon.setImageResource(R.drawable.ic_mtrl_code);
                 binding.getRoot().findViewById(R.id.property_menu_item).setVisibility(View.GONE);
+                
                 itemView.setOnClickListener(v -> {
                     var filteredIds = new ArrayList<>(ids);
+                    if (isParentConstraintLayout()) {
+                        filteredIds.add(0, "parent");
+                    }
                     filteredIds.remove(value.get(attr));
+                    
                     new MaterialAlertDialogBuilder(getContext())
-                            .setTitle("Choose an id")
+                            .setTitle("Choose a Target")
                             .setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, filteredIds), (d, w) -> {
                                 var id = filteredIds.get(w);
                                 value.put(attr, id);
-                                binding.tvValue.setText("@id/" + id);
+                                
+                                if ("parent".equals(id)) binding.tvValue.setText("parent");
+                                else binding.tvValue.setText("@id/" + id);
+                                
                                 if (valueChangeListener != null)
                                     valueChangeListener.a(key, value);
                             })
                             .setNegativeButton("Cancel", (d, which) -> d.dismiss())
                             .show();
                 });
+                
                 itemView.setOnLongClickListener(v -> {
                     MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(getContext());
                     dialog.setTitle("Delete");

@@ -230,6 +230,8 @@ public class ViewEditorFragment extends qA {
         viewEditor.addWidgetLayout(PaletteWidget.a.d, "");
         viewEditor.extraWidgetLayout("", "RadioGroup");
         viewEditor.extraWidgetLayout("", "RelativeLayout");
+        viewEditor.extraWidgetLayout("", "androidx.constraintlayout.widget.ConstraintLayout");
+        
         widgetsCreatorManager.addWidgetsByTitle("Layouts");
 
         viewEditor.paletteWidget.extraTitle("AndroidX", 0);

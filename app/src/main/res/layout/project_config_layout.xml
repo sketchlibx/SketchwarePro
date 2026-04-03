@@ -119,7 +119,8 @@
                         android:focusable="true"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:padding="16dp">
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="12dp">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="0dp"
@@ -152,7 +153,8 @@
                         android:focusable="true"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:padding="16dp">
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="12dp">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="0dp"
@@ -185,7 +187,8 @@
                         android:focusable="true"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:padding="16dp">
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="12dp">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="0dp"

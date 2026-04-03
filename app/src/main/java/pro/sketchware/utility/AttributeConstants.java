@@ -91,7 +91,22 @@ public class AttributeConstants {
                     "android:layout_alignParentEnd",
                     "android:layout_alignParentRight",
                     "android:layout_alignParentBottom",
-                    "android:layout_alignBaseline");
+                    "android:layout_alignBaseline",
+                    
+                    // Added ConstraintLayout Attributes
+                    "app:layout_constraintTop_toTopOf",
+                    "app:layout_constraintTop_toBottomOf",
+                    "app:layout_constraintBottom_toTopOf",
+                    "app:layout_constraintBottom_toBottomOf",
+                    "app:layout_constraintStart_toStartOf",
+                    "app:layout_constraintStart_toEndOf",
+                    "app:layout_constraintEnd_toStartOf",
+                    "app:layout_constraintEnd_toEndOf",
+                    "app:layout_constraintLeft_toLeftOf",
+                    "app:layout_constraintLeft_toRightOf",
+                    "app:layout_constraintRight_toLeftOf",
+                    "app:layout_constraintRight_toRightOf",
+                    "app:layout_constraintBaseline_toBaselineOf");
 
     public static Map<String, Map<String, String>> MAP_ATTR_ENUM = new HashMap<>();
     public static Map<String, Map<String, Integer>> MAP_ATTR_FLAG = new HashMap<>();
