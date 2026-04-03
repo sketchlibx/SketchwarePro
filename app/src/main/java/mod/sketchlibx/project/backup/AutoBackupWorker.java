@@ -7,7 +7,6 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
-import android.os.Environment;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -26,7 +25,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import a.a.a.lC;
-import mod.hey.studios.project.backup.BackupFactory;
 import pro.sketchware.utility.FileUtil;
 
 public class AutoBackupWorker extends Worker {
@@ -52,22 +50,32 @@ public class AutoBackupWorker extends Worker {
         NetworkInfo netInfo = cm.getActiveNetworkInfo();
         if (netInfo == null || !netInfo.isConnected() || !netInfo.isAvailable()) {
             Log.e(TAG, "No active internet connection. Retrying later.");
-            return Result.retry();
+            return Result.retry(); // Agar net nahi hai toh baad mein try karega
         }
 
         SharedPreferences prefs = context.getSharedPreferences("cloud_backup_prefs", Context.MODE_PRIVATE);
         long lastBackupTime = prefs.getLong("last_backup_time", 0);
-        String frequency = prefs.getString("backup_frequency", "Weekly");
+        int intervalType = prefs.getInt("auto_backup_interval", 2); // Default 2 is Weekly
         
-        long intervalMs = frequency.equals("Daily") ? 24L * 60 * 60 * 1000 : 7L * 24 * 60 * 60 * 1000;
+        if (intervalType == 0) return Result.success(); // 0 means Off
+        
+        long intervalMs = switch (intervalType) {
+            case 1 -> 24L * 60 * 60 * 1000; // Daily
+            case 2 -> 7L * 24 * 60 * 60 * 1000; // Weekly
+            case 3 -> 30L * 24 * 60 * 60 * 1000; // Monthly
+            default -> 7L * 24 * 60 * 60 * 1000;
+        };
+        
         if (System.currentTimeMillis() - lastBackupTime < intervalMs) {
-            Log.d(TAG, "Backup skipped. Required interval has not passed yet.");
-            return Result.success(); // Say success so WorkManager doesn't retry immediately
+            Log.d(TAG, "Backup skipped. Interval hasn't passed yet.");
+            return Result.success(); 
         }
+        
+        // Update immediately so it doesn't spam retries if something crashes in the middle
+        prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
         
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(context);
         if (account == null) {
-            Log.e(TAG, "User not signed in. Cannot perform cloud backup.");
             return Result.failure();
         }
 
@@ -93,9 +101,6 @@ public class AutoBackupWorker extends Worker {
         int total = projectsToBackup.size();
         if (total == 0) return Result.success();
 
-        String hiddenCloudBackupDir = Environment.getExternalStorageDirectory().getAbsolutePath() + "/.sketchware/.cloudbackup";
-        FileUtil.makeDir(hiddenCloudBackupDir);
-
         boolean allSuccess = true;
         for (int i = 0; i < total; i++) {
             HashMap<String, Object> project = projectsToBackup.get(i);
@@ -106,12 +111,8 @@ public class AutoBackupWorker extends Worker {
 
             updateNotification("Backing up: " + projectName, i + 1, total);
 
-            BackupFactory backupFactory = new BackupFactory(scId);
-            backupFactory.setBackupLocalLibs(true);
-            backupFactory.setBackupCustomBlocks(true);
-            backupFactory.setCustomBackupDir(hiddenCloudBackupDir); // Use hidden cloud backup folder
-            
-            backupFactory.backup(null, projectName);
+            CloudBackupFactory backupFactory = new CloudBackupFactory(scId);
+            backupFactory.backup(context, projectName);
             File swbFile = backupFactory.getOutFile();
 
             if (swbFile != null && swbFile.exists()) {
@@ -126,12 +127,8 @@ public class AutoBackupWorker extends Worker {
             }
         }
 
-        // Clean up hidden cloud backup folder after sync
-        FileUtil.deleteFile(hiddenCloudBackupDir);
-
-        if (allSuccess) {
-            prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
-        }
+        // Clean up hidden cloud backup folder entirely after syncing everything
+        FileUtil.deleteFile(CloudBackupFactory.getCloudBackupDir());
 
         updateNotification("Backup Complete!", total, total);
         return allSuccess ? Result.success() : Result.retry();

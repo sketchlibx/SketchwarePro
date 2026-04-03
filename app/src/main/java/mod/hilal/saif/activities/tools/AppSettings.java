@@ -1,7 +1,5 @@
 package mod.hilal.saif.activities.tools;
 
-import static com.besome.sketch.editor.view.ViewEditor.shakeView;
-
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -13,11 +11,8 @@ import android.os.Environment;
 import android.util.Pair;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.widget.Button;
 import android.widget.ProgressBar;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -44,10 +39,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.api.services.drive.DriveScopes;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -60,12 +52,11 @@ import dev.pranav.filepicker.FilePickerCallback;
 import dev.pranav.filepicker.FilePickerDialogFragment;
 import dev.pranav.filepicker.FilePickerOptions;
 import dev.pranav.filepicker.SelectionMode;
-import mod.alucard.tn.apksigner.ApkSigner;
 import mod.hey.studios.code.SrcCodeEditor;
-import mod.hey.studios.project.backup.BackupFactory;
 import mod.hey.studios.project.backup.BackupRestoreManager;
 import mod.sketchlibx.project.backup.AutoBackupWorker;
 import mod.sketchlibx.project.backup.CloudBackupManager;
+import mod.sketchlibx.project.backup.CloudBackupFactory;
 import mod.hey.studios.util.Helper;
 import mod.khaled.logcat.LogReaderActivity;
 import pro.sketchware.R;
@@ -237,10 +228,10 @@ public class AppSettings extends BaseAppCompatActivity {
             checkedItems[i] = true;
         }
 
-        new MaterialAlertDialogBuilder(this)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
             .setTitle("Select Projects to Backup")
-            .setMultiChoiceItems(projectNames, checkedItems, (dialog, which, isChecked) -> checkedItems[which] = isChecked)
-            .setPositiveButton("Start Backup", (dialog, which) -> {
+            .setMultiChoiceItems(projectNames, checkedItems, (d, which, isChecked) -> checkedItems[which] = isChecked)
+            .setPositiveButton("Start Backup", (d, which) -> {
                 ArrayList<HashMap<String, Object>> selectedProjects = new ArrayList<>();
                 for (int i = 0; i < checkedItems.length; i++) {
                     if (checkedItems[i]) selectedProjects.add(projects.get(i));
@@ -251,8 +242,27 @@ public class AppSettings extends BaseAppCompatActivity {
                 }
                 processManualBackupSequence(account, selectedProjects);
             })
+            .setNeutralButton("Deselect All", null)
             .setNegativeButton(R.string.common_word_cancel, null)
-            .show();
+            .create();
+
+        dialog.setOnShowListener(d -> {
+            Button neutralButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            neutralButton.setOnClickListener(v -> {
+                boolean isAnyChecked = false;
+                for (boolean isChecked : checkedItems) {
+                    if (isChecked) { isAnyChecked = true; break; }
+                }
+                boolean newState = !isAnyChecked;
+                for (int i = 0; i < checkedItems.length; i++) {
+                    checkedItems[i] = newState;
+                    dialog.getListView().setItemChecked(i, newState);
+                }
+                neutralButton.setText(newState ? "Deselect All" : "Select All");
+            });
+        });
+
+        dialog.show();
     }
 
     private void processManualBackupSequence(GoogleSignInAccount account, ArrayList<HashMap<String, Object>> projectsToBackup) {
@@ -270,9 +280,7 @@ public class AppSettings extends BaseAppCompatActivity {
                 String scId = (String) proj.get("sc_id");
                 String projectName = (String) proj.get("my_app_name");
 
-                BackupFactory factory = new BackupFactory(scId);
-                factory.setBackupLocalLibs(true);
-                factory.setBackupCustomBlocks(true);
+                CloudBackupFactory factory = new CloudBackupFactory(scId);
                 factory.backup(null, projectName);
                 
                 java.io.File swbFile = factory.getOutFile();
@@ -285,6 +293,8 @@ public class AppSettings extends BaseAppCompatActivity {
                     try { synchronized (lock) { lock.wait(); } successCount++; } catch (Exception ignored) {}
                 }
             }
+            FileUtil.deleteFile(CloudBackupFactory.getCloudBackupDir()); // Clean temp Cloud Directory
+            
             int finalSuccessCount = successCount;
             runOnUiThread(() -> {
                 progress.dismiss();
@@ -317,7 +327,7 @@ public class AppSettings extends BaseAppCompatActivity {
                     checkedItems[i] = true;
                 }
 
-                new MaterialAlertDialogBuilder(AppSettings.this)
+                AlertDialog restoreDialog = new MaterialAlertDialogBuilder(AppSettings.this)
                     .setTitle("Select Projects to Restore")
                     .setMultiChoiceItems(fileNames, checkedItems, (dialog, which, isChecked) -> checkedItems[which] = isChecked)
                     .setPositiveButton("Restore", (dialog, which) -> {
@@ -326,8 +336,27 @@ public class AppSettings extends BaseAppCompatActivity {
                         if (toRestore.isEmpty()) return;
                         processRestoreSequence(cloudManager, toRestore);
                     })
+                    .setNeutralButton("Deselect All", null)
                     .setNegativeButton(R.string.common_word_cancel, null)
-                    .show();
+                    .create();
+                    
+                restoreDialog.setOnShowListener(d -> {
+                    Button neutralButton = restoreDialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+                    neutralButton.setOnClickListener(v -> {
+                        boolean isAnyChecked = false;
+                        for (boolean isChecked : checkedItems) {
+                            if (isChecked) { isAnyChecked = true; break; }
+                        }
+                        boolean newState = !isAnyChecked;
+                        for (int i = 0; i < checkedItems.length; i++) {
+                            checkedItems[i] = newState;
+                            restoreDialog.getListView().setItemChecked(i, newState);
+                        }
+                        neutralButton.setText(newState ? "Deselect All" : "Select All");
+                    });
+                });
+                
+                restoreDialog.show();
             }
 
             @Override
@@ -344,7 +373,7 @@ public class AppSettings extends BaseAppCompatActivity {
                 .setView(new ProgressBar(this))
                 .setCancelable(false).show();
 
-        String downloadPath = new java.io.File(Environment.getExternalStorageDirectory(), "sketchware/backups").getAbsolutePath();
+        String downloadPath = new java.io.File(Environment.getExternalStorageDirectory(), ".sketchware/.cloudbackup/temp_restore").getAbsolutePath();
 
         new Thread(() -> {
             for (com.google.api.services.drive.model.File driveFile : filesToRestore) {
@@ -364,11 +393,11 @@ public class AppSettings extends BaseAppCompatActivity {
                 });
                 try { synchronized (lock) { lock.wait(); } } catch (Exception ignored) {}
             }
+            FileUtil.deleteFile(downloadPath); // Clean temp restore path
             runOnUiThread(progress::dismiss);
         }).start();
     }
 
-    // --- AUTO-BACKUP SELECTION LOGIC ---
     private void configureAutoBackupProjects() {
         ArrayList<HashMap<String, Object>> projects = lC.a();
         if (projects == null || projects.isEmpty()) {
@@ -407,7 +436,7 @@ public class AppSettings extends BaseAppCompatActivity {
     private void openAutoBackupSettings() {
         String[] intervals = {"Off (Manual Only)", "Daily", "Weekly", "Monthly"};
         SharedPreferences prefs = getSharedPreferences("cloud_backup_prefs", MODE_PRIVATE);
-        int currentSelection = prefs.getInt("auto_backup_interval", 0);
+        int currentSelection = prefs.getInt("auto_backup_interval", 2);
 
         new MaterialAlertDialogBuilder(this)
             .setTitle("Auto-Backup Frequency")
@@ -430,12 +459,11 @@ public class AppSettings extends BaseAppCompatActivity {
                 case 1 -> 1;
                 case 2 -> 7;
                 case 3 -> 30;
-                default -> 1;
+                default -> 7;
             };
             PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(
                 AutoBackupWorker.class, days, TimeUnit.DAYS
             ).build();
-            // Changed policy to KEEP so it doesn't trigger unexpectedly on app updates
             workManager.enqueueUniquePeriodicWork("CloudAutoBackup_Recurring", ExistingPeriodicWorkPolicy.KEEP, request);
         }
     }
@@ -571,7 +599,6 @@ public class AppSettings extends BaseAppCompatActivity {
         });
 
         apkPathDialog.setNegativeButton(Helper.getResString(R.string.common_word_cancel), null);
-
         apkPathDialog.setView(testkey_root);
         apkPathDialog.setCancelable(false);
         apkPathDialog.show();
@@ -593,13 +620,13 @@ public class AppSettings extends BaseAppCompatActivity {
                 .setView(building_root)
                 .create();
 
-        ApkSigner signer = new ApkSigner();
+        mod.alucard.tn.apksigner.ApkSigner signer = new mod.alucard.tn.apksigner.ApkSigner();
         new Thread() {
             @Override
             public void run() {
                 super.run();
 
-                ApkSigner.LogCallback callback = line -> runOnUiThread(() ->
+                mod.alucard.tn.apksigner.ApkSigner.LogCallback callback = line -> runOnUiThread(() ->
                         tv_log.setText(Helper.getText(tv_log) + line));
 
                 if (useTestkey) {
@@ -610,7 +637,7 @@ public class AppSettings extends BaseAppCompatActivity {
                 }
 
                 runOnUiThread(() -> {
-                    if (ApkSigner.LogCallback.errorCount.get() == 0) {
+                    if (mod.alucard.tn.apksigner.ApkSigner.LogCallback.errorCount.get() == 0) {
                         building_dialog.dismiss();
                         SketchwareUtil.toast("Successfully saved signed APK to: /Internal storage/sketchware/signed_apk/"
                                         + Uri.fromFile(new java.io.File(outputApkPath)).getLastPathSegment(),
