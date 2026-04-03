@@ -23,18 +23,17 @@
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/search_input_layout"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="12dp"
         android:hint="Search views, logic, components..."
         android:importantForAutofill="noExcludeDescendants"
-        app:boxCornerRadiusBottomEnd="8dp"
-        app:boxCornerRadiusBottomStart="8dp"
-        app:boxCornerRadiusTopEnd="8dp"
-        app:boxCornerRadiusTopStart="8dp"
-        app:startIconDrawable="@drawable/ic_mtrl_search">
+        app:boxCornerRadiusBottomEnd="50dp"
+        app:boxCornerRadiusBottomStart="50dp"
+        app:boxCornerRadiusTopEnd="50dp"
+        app:boxCornerRadiusTopStart="50dp"
+        app:startIconDrawable="@drawable/search_icon_grey">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edit_search"

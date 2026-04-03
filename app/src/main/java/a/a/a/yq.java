@@ -581,6 +581,9 @@ public class yq {
         String customJavaDir = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_java/";
         String customManifestPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_manifest.xml";
 
+        boolean isCustomJavaEnabled = projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, "false").equals("true");
+        boolean isCustomManifestEnabled = projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, "false").equals("true");
+
         List<File> javaFiles = new ArrayList<>();
         File[] fArr = new File(javaDir).listFiles();
         if (fArr != null) javaFiles = Arrays.asList(fArr);
@@ -593,15 +596,13 @@ public class yq {
         
         for (ProjectFileBean activity : projectFileManager.b()) {
             File customJavaFile = new File(customJavaDir, activity.getJavaName());
-            if (customJavaFile.exists()) {
-                // Read from Custom Java
+            
+            if (isCustomJavaEnabled && customJavaFile.exists()) {
                 srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), FileUtil.readFile(customJavaFile.getAbsolutePath())));
             } else if (!javaFiles.contains(new File(javaDir + activity.getJavaName()))) {
-                // Generate from Blocks
                 srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(),
                         new Jx(N, activity, projectDataManager).generateCode(isAndroidStudioExport, sc_id)));
             } else {
-                // Add to view in SrcCodeViewer
                 srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), FileUtil.readFile(javaDir + activity.getJavaName())));
             }
         }
@@ -688,7 +689,7 @@ public class yq {
             srcCodeBeans.add(new SrcCodeBean("GoogleMapController.java", Lx.j(Lx.f(packageName), false)));
         }
 
-        if (FileUtil.isExistFile(customManifestPath)) {
+        if (isCustomManifestEnabled && FileUtil.isExistFile(customManifestPath)) {
             srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", FileUtil.readFile(customManifestPath)));
         } else {
             srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", CommandBlock.applyCommands("AndroidManifest.xml", ix.a())));
@@ -714,6 +715,9 @@ public class yq {
         ArrayList<ProjectFileBean> files = new ArrayList<>(projectFileManager.b());
         files.addAll(new ArrayList<>(projectFileManager.c()));
         
+        boolean isCustomJavaEnabled = projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, "false").equals("true");
+        boolean isCustomManifestEnabled = projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, "false").equals("true");
+
         if (isXmlFile) {
             var path = wq.b(sc_id) + "/command";
             var newXMLCommand = Boolean.parseBoolean(projectSettings.getValue(ProjectSettings.SETTING_NEW_XML_COMMAND, ProjectSettings.SETTING_GENERIC_VALUE_FALSE));
@@ -735,7 +739,9 @@ public class yq {
 
         if (isManifestFile) {
             String customManifestPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_manifest.xml";
-            if (FileUtil.isExistFile(customManifestPath)) return FileUtil.readFile(customManifestPath);
+            if (isCustomManifestEnabled && FileUtil.isExistFile(customManifestPath)) {
+                return FileUtil.readFile(customManifestPath);
+            }
             
             ProjectBuilder builder = new ProjectBuilder(SketchApplication.getContext(), this);
             builder.buildBuiltInLibraryInformation();
@@ -748,7 +754,9 @@ public class yq {
             if (filename.equals(isJavaFile ? file.getJavaName() : file.getXmlName())) {
                 if (isJavaFile) {
                     String customJavaPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_java/" + filename;
-                    if (FileUtil.isExistFile(customJavaPath)) return FileUtil.readFile(customJavaPath);
+                    if (isCustomJavaEnabled && FileUtil.isExistFile(customJavaPath)) {
+                        return FileUtil.readFile(customJavaPath);
+                    }
                     return new Jx(N, file, projectDataManager).generateCode(isAndroidStudioExport, sc_id);
                 } else if (isXmlFile) {
                     Ox xmlGenerator = new Ox(N, file);

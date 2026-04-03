@@ -31,6 +31,8 @@ public class ProjectSettings {
     
     public static final String SETTING_FORCE_ANDROIDX = "force_androidx";
     public static final String SETTING_JAVA_TO_KOTLIN = "java_to_kotlin";
+    public static final String SETTING_ENABLE_CUSTOM_JAVA = "custom_java";
+    public static final String SETTING_ENABLE_CUSTOM_MANIFEST = "custom_manifest";
 
     public static final String SETTING_GENERIC_VALUE_TRUE = "true";
     public static final String SETTING_GENERIC_VALUE_FALSE = "false";
@@ -41,9 +43,7 @@ public class ProjectSettings {
 
     public ProjectSettings(String scId) {
         sc_id = scId;
-
         path = getPath();
-
         if (FileUtil.isExistFile(path)) {
             try {
                 hashmap = new Gson().fromJson(FileUtil.readFile(path).trim(), Helper.TYPE_STRING_MAP);
@@ -90,7 +90,6 @@ public class ProjectSettings {
         if (v.getTag() != null) {
             String key = (String) v.getTag();
             String value;
-
             if (v instanceof EditText editText) {
                 value = Helper.getText(editText);
             } else if (v instanceof Checkable checkable) {
@@ -100,7 +99,6 @@ public class ProjectSettings {
             } else {
                 return;
             }
-
             hashmap.put(key, value);
         }
     }
@@ -120,7 +118,6 @@ public class ProjectSettings {
     private String getCheckedRbValue(RadioGroup rg) {
         for (int i = 0; i < rg.getChildCount(); i++) {
             RadioButton rb = (RadioButton) rg.getChildAt(i);
-
             if (rb.isChecked()) {
                 return Helper.getText(rb);
             }

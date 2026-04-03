@@ -153,6 +153,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     private String currentJavaFileName;
     private ViewEditorFragment viewTabAdapter;
     private FloatingProgressWindow fProgress;
+
     private final ActivityResultLauncher<Intent> openCollectionManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null) {
@@ -160,6 +161,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
+
     private final ActivityResultLauncher<Intent> openResourcesManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null && viewPager.getCurrentItem() == 0) {
@@ -168,6 +170,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
+
     private final ActivityResultLauncher<Intent> openViewCodeEditor = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null) {
@@ -175,13 +178,16 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
+
     private rs eventTabAdapter;
     private br componentTabAdapter;
+
     private final ActivityResultLauncher<Intent> openImageManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
         }
     });
+
     public final ActivityResultLauncher<Intent> changeOpenFile = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == Activity.RESULT_OK) {
             assert result.getData() != null;
@@ -189,6 +195,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             refresh();
         }
     });
+
     private final ActivityResultLauncher<Intent> openLibraryManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
@@ -197,12 +204,15 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
+
     private final ActivityResultLauncher<Intent> openViewManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
         }
     });
+
     private BuildTask currentBuildTask;
+
     private final BroadcastReceiver buildCancelReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -388,7 +398,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-
         startActivity(intent);
     }
 
@@ -477,16 +486,19 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
 
         bottomPopupMenu = new PopupMenu(this, btnOptions);
         bottomMenu = bottomPopupMenu.getMenu();
+        
         bottomMenu.add(Menu.NONE, 1, Menu.NONE, "Build Settings").setOnMenuItemClickListener(item -> {
             BuildSettingsBottomSheet sheet = BuildSettingsBottomSheet.newInstance(sc_id);
             sheet.show(getSupportFragmentManager(), BuildSettingsBottomSheet.TAG);
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 99, Menu.NONE, "Advanced Settings").setOnMenuItemClickListener(item -> {
             mod.sketchlibx.settings.AdvancedSettingsBottomSheet advSheet = new mod.sketchlibx.settings.AdvancedSettingsBottomSheet(sc_id, currentJavaFileName, this);
             advSheet.show(getSupportFragmentManager(), "AdvancedSettings");
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 2, Menu.NONE, "Clean temporary files").setVisible(false).setOnMenuItemClickListener(item -> {
             new Thread(() -> {
                 FileUtil.deleteFile(q.projectMyscPath);
@@ -495,10 +507,12 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }).start();
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 3, Menu.NONE, "Show last compile error").setOnMenuItemClickListener(item -> {
             new CompileErrorSaver(sc_id).showLastErrors(this);
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 5, Menu.NONE, "Show source code").setOnMenuItemClickListener(item -> {
             showCurrentActivitySrcCode();
             return true;
@@ -515,11 +529,13 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             } else SketchwareUtil.toast("APK doesn't exist anymore");
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 6, Menu.NONE, "Show Apk signatures").setVisible(false).setOnMenuItemClickListener(item -> {
             ApkSignatures apkSignatures = new ApkSignatures(this, q.finalToInstallApkPath);
             apkSignatures.showSignaturesDialog();
             return true;
         });
+
         bottomMenu.add(Menu.NONE, 7, Menu.NONE, "Direct XML editor").setOnMenuItemClickListener(item -> {
             toViewCodeEditor();
             return true;
@@ -555,16 +571,19 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 } else if (currentTabNumber == 2 && componentTabAdapter != null) {
                     componentTabAdapter.unselectAll();
                 }
+                
+                boolean isCustomJavaEnabled = new ProjectSettings(sc_id).getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, "false").equals("true");
+
                 if (position == 0) {
-                    bottomMenu.findItem(7).setVisible(true); // XML Editor
-                    bottomMenu.findItem(9).setVisible(false); // Custom Java Editor hidden in View Tab
+                    bottomMenu.findItem(7).setVisible(true); 
+                    bottomMenu.findItem(9).setVisible(false); 
                     if (viewTabAdapter != null) {
                         viewTabAdapter.showHidePropertyView(true);
                         xmlLayoutOrientation.setImageResource(R.drawable.ic_mtrl_screen);
                     }
                 } else if (position == 1) {
                     bottomMenu.findItem(7).setVisible(false); 
-                    bottomMenu.findItem(9).setVisible(true); // Custom Java Editor visible
+                    bottomMenu.findItem(9).setVisible(isCustomJavaEnabled); 
                     if (viewTabAdapter != null) {
                         xmlLayoutOrientation.setImageResource(R.drawable.ic_mtrl_code);
                         viewTabAdapter.showHidePropertyView(false);
@@ -572,7 +591,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                     }
                 } else {
                     bottomMenu.findItem(7).setVisible(false);
-                    bottomMenu.findItem(9).setVisible(true); // Custom Java Editor visible
+                    bottomMenu.findItem(9).setVisible(isCustomJavaEnabled); 
                     if (viewTabAdapter != null) {
                         xmlLayoutOrientation.setImageResource(R.drawable.ic_mtrl_code);
                         viewTabAdapter.showHidePropertyView(false);
@@ -832,7 +851,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             FileUtil.makeDir(customJavaDir);
             String customJavaPath = customJavaDir + javaFileName;
 
-            // Generate initial Base Java from Blocks if Custom Java doesn't exist yet
             if (!FileUtil.isExistFile(customJavaPath)) {
                 String source = new yq(getApplicationContext(), sc_id).getFileSrc(javaFileName, jC.b(sc_id), jC.a(sc_id), jC.c(sc_id));
                 FileUtil.writeFile(customJavaPath, source);
@@ -906,7 +924,28 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     }
 
     void toCollectionManager() { launchActivity(ManageCollectionActivity.class, openCollectionManager); }
-    void toAndroidManifestManager() { if (projectFile != null) launchActivity(AndroidManifestInjection.class, null, new Pair<>("file_name", currentJavaFileName)); }
+    
+    void toAndroidManifestManager() { 
+        if (projectFile == null) return;
+        
+        boolean isCustomManifestEnabled = new ProjectSettings(sc_id).getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, "false").equals("true");
+        
+        if (isCustomManifestEnabled) {
+            String customManifestPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_manifest.xml";
+            if (!FileUtil.isExistFile(customManifestPath)) {
+                String source = new yq(getApplicationContext(), sc_id).getFileSrc("AndroidManifest.xml", jC.b(sc_id), jC.a(sc_id), jC.c(sc_id));
+                FileUtil.writeFile(customManifestPath, source);
+            }
+            Intent intent = new Intent(this, SrcCodeEditor.class);
+            intent.putExtra("content", customManifestPath);
+            intent.putExtra("title", "Custom AndroidManifest.xml");
+            intent.putExtra("sc_id", sc_id);
+            startActivity(intent);
+        } else {
+            launchActivity(AndroidManifestInjection.class, null, new Pair<>("file_name", currentJavaFileName)); 
+        }
+    }
+    
     void toAppCompatInjectionManager() { if (projectFile != null) launchActivity(ManageAppCompatActivity.class, null, new Pair<>("file_name", projectFile.getXmlName())); }
     void toAssetManager() { launchActivity(ManageAssetsActivity.class, null); }
     void toCustomBlocksViewer() { new CustomBlocksDialog().show(this, sc_id); }
@@ -1448,7 +1487,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 try {
                     if (result.category.equals("View") && result.targetId != null) {
                         
-                        // Handle Drawer View specially by opening the drawer first
                         if (result.title.contains("(Drawer")) {
                             if (!drawer.isDrawerOpen(androidx.core.view.GravityCompat.END)) {
                                 drawer.openDrawer(androidx.core.view.GravityCompat.END);
@@ -1470,7 +1508,6 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                         intent.putExtra("event_text", result.eventName);
                         startActivity(intent);
                     } else if (result.category.equals("Component") || result.category.equals("Variable") || result.category.equals("List")) {
-                        // Just switching to the tab (handled above via viewPager.setCurrentItem) is enough for components
                         pro.sketchware.utility.SketchwareUtil.toast("Switched to " + result.category + " tab");
                     }
                 } catch (Exception e) {
@@ -1484,7 +1521,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     }
     
     public void reloadProjectAfterTimeTravel() {
-        k(); // Show loading dialog
+        k();
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             try {
                 jC.a(); 
