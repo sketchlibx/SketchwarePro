@@ -83,7 +83,7 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
         } else {
             adapter.notifyDataSetChanged();
         }
-        
+
         if (currentList.isEmpty()) {
             emptyStateText.setVisibility(View.VISIBLE);
             recyclerView.setVisibility(View.GONE);
@@ -96,20 +96,20 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
     }
 
     private void performDeletion(ProjectAnalyzerEngine.UnusedResource res) {
-        if (res.type == 1) { // Image
+        if (res.type == 1) {
             jC.d(sc_id).b.remove((ProjectResourceBean) res.reference);
-        } else if (res.type == 2) { // Sound
+        } else if (res.type == 2) {
             jC.d(sc_id).c.remove((ProjectResourceBean) res.reference);
-        } else if (res.type == 3) { // Font
+        } else if (res.type == 3) {
             jC.d(sc_id).d.remove((ProjectResourceBean) res.reference);
-        } else if (res.type == 4) { // Custom Layout
+        } else if (res.type == 4) {
             jC.b(sc_id).c().remove((ProjectFileBean) res.reference);
         }
     }
 
     private void saveAllChanges() {
-        jC.d(sc_id).a(); // Save Images, Sounds, Fonts
-        jC.b(sc_id).l(); // Save Custom Views Config
+        jC.d(sc_id).a();
+        jC.b(sc_id).l();
         jC.b(sc_id).j();
     }
 
@@ -128,9 +128,9 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
             holder.subtitle.setText(res.detail);
 
             if (res.type == 1) holder.icon.setImageResource(R.drawable.ic_mtrl_image);
-            else if (res.type == 2) holder.icon.setImageResource(R.drawable.ic_mtrl_audiotrack);
-            else if (res.type == 3) holder.icon.setImageResource(R.drawable.ic_mtrl_text_format);
-            else if (res.type == 4) holder.icon.setImageResource(R.drawable.ic_mtrl_screen);
+            else if (res.type == 2) holder.icon.setImageResource(R.drawable.ic_mtrl_music);
+            else if (res.type == 3) holder.icon.setImageResource(R.drawable.ic_mtrl_font);
+            else if (res.type == 4) holder.icon.setImageResource(R.drawable.ic_mtrl_devices);
 
             holder.btnDelete.setOnClickListener(v -> {
                 new MaterialAlertDialogBuilder(ResourceTrackerActivity.this)
@@ -142,7 +142,7 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
                             currentList.remove(position);
                             notifyItemRemoved(position);
                             notifyItemRangeChanged(position, currentList.size());
-                            
+
                             if (currentList.isEmpty()) {
                                 emptyStateText.setVisibility(View.VISIBLE);
                                 recyclerView.setVisibility(View.GONE);
