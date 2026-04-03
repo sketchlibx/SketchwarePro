@@ -12,10 +12,15 @@ import android.util.Pair;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.graphics.Insets;
@@ -39,6 +44,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.api.services.drive.DriveScopes;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +58,7 @@ import dev.pranav.filepicker.FilePickerCallback;
 import dev.pranav.filepicker.FilePickerDialogFragment;
 import dev.pranav.filepicker.FilePickerOptions;
 import dev.pranav.filepicker.SelectionMode;
+import mod.alucard.tn.apksigner.ApkSigner;
 import mod.hey.studios.code.SrcCodeEditor;
 import mod.hey.studios.project.backup.BackupRestoreManager;
 import mod.sketchlibx.project.backup.AutoBackupWorker;
@@ -495,7 +502,7 @@ public class AppSettings extends BaseAppCompatActivity {
 
         FilePickerCallback callback = new FilePickerCallback() {
             @Override
-            public void onFilesSelected(@NotNull List<? extends java.io.File> files) {
+            public void onFilesSelected(@NonNull List<? extends java.io.File> files) {
                 boolean isDirectory = files.get(0).isDirectory();
                 if (files.size() > 1 || isDirectory) {
                     new MaterialAlertDialogBuilder(AppSettings.this)
@@ -552,7 +559,7 @@ public class AppSettings extends BaseAppCompatActivity {
 
         DialogSelectApkToSignBinding binding = DialogSelectApkToSignBinding.inflate(getLayoutInflater());
         View testkey_root = binding.getRoot();
-        TextView apk_path_txt = binding.apkPathTxt;
+        TextView apk_path_txt = testkey_root.findViewById(R.id.apkPathTxt); // Fallback standard ID finding
 
         binding.selectFile.setOnClickListener(v -> {
             FilePickerOptions options = new FilePickerOptions();
@@ -561,7 +568,9 @@ public class AppSettings extends BaseAppCompatActivity {
                 @Override
                 public void onFileSelected(java.io.File file) {
                     isAPKSelected[0] = true;
-                    apk_path_txt.setText(file.getAbsolutePath());
+                    if (apk_path_txt != null) {
+                        apk_path_txt.setText(file.getAbsolutePath());
+                    }
                 }
             };
             FilePickerDialogFragment dialog = new FilePickerDialogFragment(options, callback);
@@ -570,11 +579,10 @@ public class AppSettings extends BaseAppCompatActivity {
 
         apkPathDialog.setPositiveButton("Continue", (v, which) -> {
             if (!isAPKSelected[0]) {
-                SketchwareUtil.toast("Please select an APK file to sign", Toast.LENGTH_SHORT);
-                shakeView(binding.selectFile);
+                SketchwareUtil.toast("Please select an APK file to sign");
                 return;
             }
-            String input_apk_path = Helper.getText(apk_path_txt);
+            String input_apk_path = apk_path_txt != null ? Helper.getText(apk_path_txt) : "";
             String output_apk_file_name = Uri.fromFile(new java.io.File(input_apk_path)).getLastPathSegment();
             String output_apk_path = new java.io.File(Environment.getExternalStorageDirectory(),
                     "sketchware/signed_apk/" + output_apk_file_name).getAbsolutePath();
@@ -612,21 +620,26 @@ public class AppSettings extends BaseAppCompatActivity {
         ScrollView scroll_view = new ScrollView(this);
         TextView tv_log = new TextView(this);
         scroll_view.addView(tv_log);
-        layout_quiz.addView(scroll_view);
+        
+        if (layout_quiz != null) {
+            layout_quiz.addView(scroll_view);
+        }
 
-        tv_progress.setText("Signing APK...");
+        if (tv_progress != null) {
+            tv_progress.setText("Signing APK...");
+        }
 
         AlertDialog building_dialog = new MaterialAlertDialogBuilder(this)
                 .setView(building_root)
                 .create();
 
-        mod.alucard.tn.apksigner.ApkSigner signer = new mod.alucard.tn.apksigner.ApkSigner();
+        ApkSigner signer = new ApkSigner();
         new Thread() {
             @Override
             public void run() {
                 super.run();
 
-                mod.alucard.tn.apksigner.ApkSigner.LogCallback callback = line -> runOnUiThread(() ->
+                ApkSigner.LogCallback callback = line -> runOnUiThread(() ->
                         tv_log.setText(Helper.getText(tv_log) + line));
 
                 if (useTestkey) {
@@ -637,13 +650,14 @@ public class AppSettings extends BaseAppCompatActivity {
                 }
 
                 runOnUiThread(() -> {
-                    if (mod.alucard.tn.apksigner.ApkSigner.LogCallback.errorCount.get() == 0) {
+                    if (ApkSigner.LogCallback.errorCount.get() == 0) {
                         building_dialog.dismiss();
                         SketchwareUtil.toast("Successfully saved signed APK to: /Internal storage/sketchware/signed_apk/"
-                                        + Uri.fromFile(new java.io.File(outputApkPath)).getLastPathSegment(),
-                                Toast.LENGTH_LONG);
+                                        + Uri.fromFile(new java.io.File(outputApkPath)).getLastPathSegment());
                     } else {
-                        tv_progress.setText("An error occurred. Check the log for more details.");
+                        if (tv_progress != null) {
+                            tv_progress.setText("An error occurred. Check the log for more details.");
+                        }
                     }
                 });
             }
