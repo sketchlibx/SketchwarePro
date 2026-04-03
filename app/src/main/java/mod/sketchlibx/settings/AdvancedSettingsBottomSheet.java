@@ -1,5 +1,6 @@
 package mod.sketchlibx.settings;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -7,12 +8,10 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 
 import com.besome.sketch.design.DesignActivity;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
 import mod.hey.studios.project.ProjectSettings;
@@ -69,8 +68,11 @@ public class AdvancedSettingsBottomSheet extends BottomSheetDialogFragment {
         cbCustomManifest.setChecked(projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, "false").equals("true"));
 
         root.findViewById(R.id.btn_project_analyzer).setOnClickListener(v -> {
+            saveSettings();
             dismiss();
-            runProjectAnalyzer();
+            Intent intent = new Intent(activity, ResourceTrackerActivity.class);
+            intent.putExtra("sc_id", sc_id);
+            startActivity(intent);
         });
 
         root.findViewById(R.id.btn_cancel).setOnClickListener(v -> dismiss());
@@ -88,25 +90,5 @@ public class AdvancedSettingsBottomSheet extends BottomSheetDialogFragment {
         projectSettings.setValue(ProjectSettings.SETTING_JAVA_TO_KOTLIN, cbKotlinConversion.isChecked() ? "true" : "false");
         projectSettings.setValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, cbCustomJava.isChecked() ? "true" : "false");
         projectSettings.setValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, cbCustomManifest.isChecked() ? "true" : "false");
-    }
-
-    private void runProjectAnalyzer() {
-        AlertDialog progress = new MaterialAlertDialogBuilder(activity)
-                .setTitle("Analyzing Project...")
-                .setMessage("Scanning for unused views, unused resources, duplicate IDs and heavy layouts. Please wait.")
-                .setCancelable(false)
-                .show();
-
-        new Thread(() -> {
-            String report = ProjectAnalyzerEngine.analyze(sc_id);
-            activity.runOnUiThread(() -> {
-                progress.dismiss();
-                new MaterialAlertDialogBuilder(activity)
-                        .setTitle("Analyzer Report")
-                        .setMessage(report)
-                        .setPositiveButton("Dismiss", null)
-                        .show();
-            });
-        }).start();
     }
 }
