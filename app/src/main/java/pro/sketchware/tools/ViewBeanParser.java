@@ -117,7 +117,6 @@ public class ViewBeanParser {
 
         int type = ViewBean.getViewTypeByTypeName(className);
 
-        // PRO FIX: Smart Mapping for Custom Widgets
         if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !className.equals("LinearLayout")) {
             if (className.contains("Switch")) type = ViewBean.VIEW_TYPE_WIDGET_SWITCH;
             else if (className.contains("ProgressIndicator") || className.contains("ProgressBar") || className.contains("LoadingIndicator")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
@@ -217,7 +216,6 @@ public class ViewBeanParser {
                     if (oldLayout != null) {
                         for (ViewBean oldBean : oldLayout) {
                             if (oldBean.id.equals(id)) {
-                                // FIXED BUG: Only overwrite type if it's generic
                                 if (type == 0 || type == 14) {
                                     type = oldBean.type;
                                 }
@@ -318,8 +316,12 @@ public class ViewBeanParser {
                     }
 
                     if (!isNativeToAll && !isNativeToType) {
-                        if (key.startsWith("android:layout_")) {
-                            bean.parentAttributes.put(key, value);
+                        if (key.startsWith("android:layout_") || key.startsWith("app:layout_constraint")) {
+                            String cleanValue = value;
+                            if (cleanValue.contains("/")) {
+                                cleanValue = cleanValue.substring(cleanValue.indexOf("/") + 1);
+                            }
+                            bean.parentAttributes.put(key, cleanValue);
                         } else {
                             injectMap.put(key, value);
                         }
