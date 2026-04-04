@@ -57,6 +57,7 @@ public class ConfigActivity extends BaseAppCompatActivity {
     public static final String SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH = "blockDir";
     
     public static final String SETTING_TREE_VIEW = "enable-tree-view";
+    public static final String SETTING_GIT_DIRECT_PUSH = "git-direct-push";
 
     public static String getBackupPath() {
         return DataStore.getInstance().getString(SETTING_BACKUP_DIRECTORY, "/.sketchware/backups/");
@@ -138,7 +139,8 @@ public class ConfigActivity extends BaseAppCompatActivity {
                 SETTING_USE_ASD_HIGHLIGHTER,
                 SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH,
                 SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH,
-                SETTING_TREE_VIEW);
+                SETTING_TREE_VIEW,
+                SETTING_GIT_DIRECT_PUSH);
 
         for (String key : keys) {
             settings.put(key, getDefaultValue(key));
@@ -151,7 +153,7 @@ public class ConfigActivity extends BaseAppCompatActivity {
             case SETTING_ALWAYS_SHOW_BLOCKS,
                  SETTING_ROOT_AUTO_INSTALL_PROJECTS, SETTING_SHOW_BUILT_IN_BLOCKS,
                  SETTING_SHOW_EVERY_SINGLE_BLOCK, SETTING_USE_NEW_VERSION_CONTROL,
-                 SETTING_USE_ASD_HIGHLIGHTER, SETTING_TREE_VIEW -> false;
+                 SETTING_USE_ASD_HIGHLIGHTER, SETTING_TREE_VIEW, SETTING_GIT_DIRECT_PUSH -> false;
             case SETTING_BACKUP_DIRECTORY -> "/.sketchware/backups/";
             case SETTING_ROOT_AUTO_OPEN_AFTER_INSTALLING -> true;
             case SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH ->
@@ -218,11 +220,17 @@ public class ConfigActivity extends BaseAppCompatActivity {
 
             SwitchPreferenceCompat treeViewPref = new SwitchPreferenceCompat(requireContext());
             treeViewPref.setKey(SETTING_TREE_VIEW);
-            treeViewPref.setTitle("Enable Tree View File Manager");
-            treeViewPref.setSummary("Show Java/Kotlin files in a hierarchical tree view instead of flat folders. Essential for large projects!");
+            treeViewPref.setTitle("Tree View File Manager");
+            treeViewPref.setSummary("Display project source files in a hierarchical tree structure instead of a flat list.");
             treeViewPref.setDefaultValue(false);
-            treeViewPref.setIcon(R.drawable.ic_mtrl_folder); // standard folder icon
             getPreferenceScreen().addPreference(treeViewPref);
+
+            SwitchPreferenceCompat gitDirectPushPref = new SwitchPreferenceCompat(requireContext());
+            gitDirectPushPref.setKey(SETTING_GIT_DIRECT_PUSH);
+            gitDirectPushPref.setTitle("Git: Direct Commit & Push");
+            gitDirectPushPref.setSummary("Show a 'Commit & Push' button in the Git Client to perform both actions in one click.");
+            gitDirectPushPref.setDefaultValue(false);
+            getPreferenceScreen().addPreference(gitDirectPushPref);
 
             Preference backupDir = findPreference("backup-dir");
             assert backupDir != null;

@@ -665,7 +665,7 @@ public class ViewPane extends RelativeLayout {
         return null;
     }
 
-    public void addFab(ViewBean viewBean) {
+    public View addFab(ViewBean viewBean) {
         View findViewWithTag = findViewWithTag("_fab");
         if (findViewWithTag != null) {
             return findViewWithTag;
@@ -722,6 +722,70 @@ public class ViewPane extends RelativeLayout {
             }
             highlightedTextView.setVisibility(View.VISIBLE);
             this.viewInfo = viewInfo;
+        }
+    }
+
+    public void updateViewBeanProperties(ViewBean viewBean, int x, int y) {
+        ViewInfo viewInfo = getViewInfo(x, y);
+        if (viewInfo != null) {
+            View view = viewInfo.view();
+            if (view instanceof LinearLayout) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+            } else if (view instanceof ItemVerticalScrollView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_VSCROLLVIEW;
+                viewBean.layout.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            } else if (view instanceof ItemHorizontalScrollView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW;
+                viewBean.layout.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            } else if (view instanceof ItemCardView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW;
+                viewBean.layout.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            } else if (view instanceof ItemRelativeLayout) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_RELATIVE;
+            } else if (view instanceof ItemConstraintLayout) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT; // Type 50 Mapping
+            }
+        } else {
+            viewBean.preIndex = viewBean.index;
+            viewBean.preParent = viewBean.parent;
+            viewBean.parent = "root";
+            viewBean.preParentType = viewBean.parentType;
+            if (rootLayout instanceof ItemView sy) {
+                viewBean.parentType = sy.getBean().type;
+            } else {
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+            }
+            viewBean.index = -1;
         }
     }
 
