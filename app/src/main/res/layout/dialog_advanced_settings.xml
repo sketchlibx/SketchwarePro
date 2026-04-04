@@ -54,6 +54,7 @@
                     android:orientation="vertical">
 
                     <LinearLayout
+                        android:id="@+id/row_force_androidx"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="?attr/selectableItemBackground"
@@ -102,6 +103,7 @@
                         android:background="?attr/colorOutlineVariant" />
 
                     <LinearLayout
+                        android:id="@+id/row_java_to_kotlin"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="?attr/selectableItemBackground"
@@ -150,6 +152,7 @@
                         android:background="?attr/colorOutlineVariant" />
 
                     <LinearLayout
+                        android:id="@+id/row_custom_java"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="?attr/selectableItemBackground"
@@ -198,6 +201,7 @@
                         android:background="?attr/colorOutlineVariant" />
 
                     <LinearLayout
+                        android:id="@+id/row_custom_manifest"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="?attr/selectableItemBackground"

@@ -63,6 +63,10 @@ public class ManageProguardActivity extends BaseAppCompatActivity {
     }
 
     private void initializeClickListeners() {
+        binding.rowPgEnabled.setOnClickListener(v -> binding.swPgEnabled.performClick());
+        binding.rowPgDebug.setOnClickListener(v -> binding.swPgDebug.performClick());
+        binding.rowR8Enabled.setOnClickListener(v -> binding.r8Enabled.performClick());
+
         binding.lnPgRules.setOnClickListener(v -> {
             Intent intent = new Intent(this, SrcCodeEditor.class);
             intent.putExtra("title", "proguard-rules.pro");

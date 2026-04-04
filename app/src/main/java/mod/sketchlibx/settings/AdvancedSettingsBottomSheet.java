@@ -1,16 +1,19 @@
 package mod.sketchlibx.settings;
 
+import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.besome.sketch.design.DesignActivity;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
@@ -35,20 +38,19 @@ public class AdvancedSettingsBottomSheet extends BottomSheetDialogFragment {
         this.activity = activity;
     }
 
+    @NonNull
     @Override
-    public void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setStyle(STYLE_NORMAL, R.style.Theme_MaterialComponents_BottomSheetDialog);
-    }
-
-    @Override
-    public void onStart() {
-        super.onStart();
-        View bottomSheet = getDialog().findViewById(com.google.android.material.R.id.design_bottom_sheet);
-        if (bottomSheet != null) {
-            BottomSheetBehavior.from(bottomSheet).setState(BottomSheetBehavior.STATE_EXPANDED);
-            BottomSheetBehavior.from(bottomSheet).setSkipCollapsed(true);
-        }
+    public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+        BottomSheetDialog dialog = new BottomSheetDialog(requireContext(), getTheme());
+        dialog.setOnShowListener(dialogInterface -> {
+            View bottomSheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
+            if (bottomSheet != null) {
+                BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(bottomSheet);
+                behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+                behavior.setSkipCollapsed(true);
+            }
+        });
+        return dialog;
     }
 
     @Nullable
@@ -62,10 +64,20 @@ public class AdvancedSettingsBottomSheet extends BottomSheetDialogFragment {
         cbCustomJava = root.findViewById(R.id.switch_custom_java);
         cbCustomManifest = root.findViewById(R.id.switch_custom_manifest);
 
+        LinearLayout rowForceAndroidX = root.findViewById(R.id.row_force_androidx);
+        LinearLayout rowKotlin = root.findViewById(R.id.row_java_to_kotlin);
+        LinearLayout rowCustomJava = root.findViewById(R.id.row_custom_java);
+        LinearLayout rowCustomManifest = root.findViewById(R.id.row_custom_manifest);
+
         cbForceAndroidX.setChecked(projectSettings.getValue(ProjectSettings.SETTING_FORCE_ANDROIDX, "false").equals("true"));
         cbKotlinConversion.setChecked(projectSettings.getValue(ProjectSettings.SETTING_JAVA_TO_KOTLIN, "false").equals("true"));
         cbCustomJava.setChecked(projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_JAVA, "false").equals("true"));
         cbCustomManifest.setChecked(projectSettings.getValue(ProjectSettings.SETTING_ENABLE_CUSTOM_MANIFEST, "false").equals("true"));
+
+        rowForceAndroidX.setOnClickListener(v -> cbForceAndroidX.performClick());
+        rowKotlin.setOnClickListener(v -> cbKotlinConversion.performClick());
+        rowCustomJava.setOnClickListener(v -> cbCustomJava.performClick());
+        rowCustomManifest.setOnClickListener(v -> cbCustomManifest.performClick());
 
         root.findViewById(R.id.btn_project_analyzer).setOnClickListener(v -> {
             saveSettings();

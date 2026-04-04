@@ -309,25 +309,22 @@ public class ViewProperty extends LinearLayout implements Kw {
             }
         });
 
-        // 🔥 NEW: Overlay View to intercept click and show Drawer if Tree View is enabled
-        FrameLayout spinnerContainer = findViewById(R.id.spn_widget_container); // Ensure you wrap your spinner in a FrameLayout with this ID in view_property.xml
+        FrameLayout spinnerContainer = findViewById(R.id.spn_widget_container); 
         if (spinnerContainer != null) {
             View overlay = new View(context);
             overlay.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            overlay.setBackgroundColor(0x00000000); // Transparent
+            overlay.setBackgroundColor(0x00000000); 
             spinnerContainer.addView(overlay);
             
             overlay.setOnClickListener(v -> {
                 if (ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW)) {
-                    // Open the custom Left Drawer
                     if (context instanceof FragmentActivity) {
                         ViewTreeDrawerDialog drawer = new ViewTreeDrawerDialog(projectActivityViews, viewId -> {
-                            a(viewId); // Select the item from drawer
+                            a(viewId); 
                         });
                         drawer.show(((FragmentActivity) context).getSupportFragmentManager(), "ViewTreeDrawer");
                     }
                 } else {
-                    // Open default spinner dropdown
                     spnWidget.performClick();
                 }
             });
@@ -401,6 +398,68 @@ public class ViewProperty extends LinearLayout implements Kw {
             return;
         }
         seeAll.setView(viewBean);
+    }
+
+    public void updateViewBeanProperties(ViewBean viewBean, int i, int i2) {
+        if (viewInfo != null) {
+            View view = viewInfo.view();
+            if (view instanceof LinearLayout) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+            } else if (view instanceof ItemVerticalScrollView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_VSCROLLVIEW;
+                viewBean.layout.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            } else if (view instanceof ItemHorizontalScrollView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW;
+                viewBean.layout.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            } else if (view instanceof ItemCardView) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                viewBean.parentType = mod.agus.jcoderz.beans.ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW;
+                viewBean.layout.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            } else if (view instanceof ItemRelativeLayout) {
+                viewBean.preIndex = viewBean.index;
+                viewBean.index = viewInfo.index();
+                viewBean.preParent = viewBean.parent;
+                viewBean.parent = view.getTag().toString();
+                viewBean.preParentType = viewBean.parentType;
+                
+                ViewBean parentBean = ((ItemView) view).getBean();
+                if (parentBean != null && parentBean.type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+                    viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                } else {
+                    viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_RELATIVE;
+                }
+            }
+        } else {
+            viewBean.preIndex = viewBean.index;
+            viewBean.preParent = viewBean.parent;
+            viewBean.parent = "root";
+            viewBean.preParentType = viewBean.parentType;
+            if (rootLayout instanceof ItemView sy) {
+                viewBean.parentType = sy.getBean().type;
+            } else {
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+            }
+            viewBean.index = -1;
+        }
     }
 
     private static class ViewIdsAdapter extends BaseAdapter {

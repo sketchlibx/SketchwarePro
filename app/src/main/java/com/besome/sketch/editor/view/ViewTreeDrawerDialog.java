@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -69,7 +70,7 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         super.onStart();
         Window window = getDialog().getWindow();
         if (window != null) {
-            window.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            window.setLayout(SketchwareUtil.dpToPx(300), ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.START);
             window.setWindowAnimations(R.style.Animation_Design_BottomSheetDialog);
             
@@ -86,7 +87,7 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setLayoutParams(new ViewGroup.LayoutParams(SketchwareUtil.dpToPx(300), ViewGroup.LayoutParams.MATCH_PARENT));
+        root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         ShapeAppearanceModel shape = ShapeAppearanceModel.builder()
                 .setTopRightCornerSize(SketchwareUtil.getDip(24))
@@ -119,8 +120,9 @@ public class ViewTreeDrawerDialog extends DialogFragment {
         hsv.setFillViewport(true);
 
         RecyclerView rv = new RecyclerView(requireContext());
-        rv.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        rv.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
         rv.setLayoutManager(new LinearLayoutManager(getContext()));
+        rv.setMinimumWidth(SketchwareUtil.dpToPx(300));
         rv.setClipToPadding(false);
         rv.setPadding(0, SketchwareUtil.dpToPx(8), padding, padding);
 

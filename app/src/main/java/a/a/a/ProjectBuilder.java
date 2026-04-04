@@ -5,6 +5,7 @@ import static android.system.OsConstants.S_IWUSR;
 import static android.system.OsConstants.S_IXUSR;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -69,7 +70,6 @@ import mod.jbk.build.compiler.resource.ResourceCompiler;
 import mod.jbk.util.LogUtil;
 import mod.jbk.util.TestkeySignBridge;
 import mod.pranav.build.JarBuilder;
-import mod.pranav.build.R8Compiler;
 import mod.pranav.viewbinding.ViewBindingBuilder;
 import pro.sketchware.SketchApplication;
 import pro.sketchware.util.library.BuiltInLibraryManager;
@@ -804,11 +804,60 @@ public class ProjectBuilder {
                 jars.add(hashMap.get("jarPath").toString());
             }
         }
-        try {
-            new R8Compiler(rules, config.toArray(new String[0]), getProguardClasspath().split(":"), jars.toArray(new String[0]), settings.getMinSdkVersion(), yq).compile();
+
+        File argsFile = new File(yq.binDirectoryPath, "r8_args.obj");
+        try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(new java.io.FileOutputStream(argsFile))) {
+            oos.writeObject(rules);
+            oos.writeObject(config.toArray(new String[0]));
+            oos.writeObject(getProguardClasspath().split(":"));
+            oos.writeObject(jars.toArray(new String[0]));
+            oos.writeInt(settings.getMinSdkVersion());
         } catch (Exception e) {
-            throw new IOException(e);
+            throw new IOException("Failed to serialize R8 args: " + e.getMessage());
         }
+
+        final String[] error = new String[1];
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        
+        android.content.BroadcastReceiver receiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.hasExtra("error")) {
+                    error[0] = intent.getStringExtra("error");
+                }
+                latch.countDown();
+            }
+        };
+        
+        int flags = 0;
+        if (Build.VERSION.SDK_INT >= 33) {
+            flags = 4;
+        }
+        
+        if (Build.VERSION.SDK_INT >= 33) {
+             context.registerReceiver(receiver, new android.content.IntentFilter("com.sketchware.R8_COMPLETE"), flags);
+        } else {
+             context.registerReceiver(receiver, new android.content.IntentFilter("com.sketchware.R8_COMPLETE"));
+        }
+        
+        Intent intent = new Intent();
+        intent.setClassName(context, "mod.pranav.build.R8Service");
+        intent.putExtra("sc_id", yq.sc_id);
+        intent.putExtra("args_path", argsFile.getAbsolutePath());
+        context.startService(intent);
+        
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new IOException("R8 Interrupted");
+        } finally {
+            context.unregisterReceiver(receiver);
+        }
+        
+        if (error[0] != null) {
+            throw new IOException("R8 Compilation Failed:\n" + error[0]);
+        }
+
         LogUtil.d(TAG, "R8 took " + (System.currentTimeMillis() - savedTimeMillis) + " ms");
     }
 

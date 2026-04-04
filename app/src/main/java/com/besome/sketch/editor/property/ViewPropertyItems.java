@@ -414,9 +414,11 @@ public class ViewPropertyItems extends LinearLayout implements Kw, View.OnClickL
         Gx parentClassInfo = bean.getParentClassInfo();
         a(bean, "property_layout_width");
         a(bean, "property_layout_height");
-        if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+        
+        if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             a(bean, "property_parent_attr");
         }
+        
         a(bean, "property_padding");
         a(bean, "property_margin");
         if (classInfo.a("LinearLayout")) {

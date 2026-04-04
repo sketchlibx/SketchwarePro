@@ -271,6 +271,7 @@ public class ViewPane extends RelativeLayout {
                  ViewBeans.VIEW_TYPE_LAYOUT_SWIPEREFRESHLAYOUT,
                  ViewBeans.VIEW_TYPE_LAYOUT_RADIOGROUP -> new ItemLinearLayout(context);
             case ViewBean.VIEW_TYPE_LAYOUT_RELATIVE -> new ItemRelativeLayout(context);
+            case ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT -> new ItemRelativeLayout(context);
             case ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW -> new ItemCardView(context);
             case ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW -> new ItemHorizontalScrollView(context);
             case ViewBean.VIEW_TYPE_WIDGET_BUTTON -> new ItemButton(context);
@@ -326,7 +327,6 @@ public class ViewPane extends RelativeLayout {
     }
 
     private View getUnknownItemView(ViewBean bean) {
-        // FIX: Removed 'bean.type = ViewBean.VIEW_TYPE_LAYOUT_LINEAR' to prevent destructive mutation of custom views
         if (bean.convert != null && bean.convert.contains("ConstraintLayout")) {
             return new ItemRelativeLayout(context);
         }
@@ -493,7 +493,7 @@ public class ViewPane extends RelativeLayout {
                 ((ItemLinearLayout) view).setLayoutGravity(viewBean.layout.gravity);
             }
         }
-        if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+        if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             updateRelative(view, injectHandler);
         }
         if (classInfo.a("TextView")) {
@@ -1000,7 +1000,7 @@ public class ViewPane extends RelativeLayout {
         if (rootLayout != null) {
             ViewGroup viewGroup = rootLayout.findViewWithTag(bean.parent);
             viewGroup.addView(view, bean.index);
-            if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+            if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
                 updateRelativeParentViews(view, new InjectAttributeHandler(bean));
             }
             if (viewGroup instanceof ScrollContainer scrollContainer) {
@@ -1015,6 +1015,10 @@ public class ViewPane extends RelativeLayout {
             if (parent instanceof ItemLinearLayout) {
                 return ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
             } else if (parent instanceof ItemRelativeLayout) {
+                ViewBean parentBean = ((ItemView) parent).getBean();
+                if (parentBean != null && parentBean.type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+                    return ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                }
                 return ViewBean.VIEW_TYPE_LAYOUT_RELATIVE;
             } else if (parent instanceof ItemCardView) {
                 return ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW;
@@ -1060,7 +1064,7 @@ public class ViewPane extends RelativeLayout {
             }
             layoutParams2.weight = viewBean.layout.weight;
             view.setLayoutParams(layoutParams2);
-        } else if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+        } else if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             RelativeLayout.LayoutParams layoutParams2 = new RelativeLayout.LayoutParams(width, height);
             layoutParams2.setMargins(leftMargin, topMargin, rightMargin, bottomMargin);
             LayoutBean layoutBean3 = viewBean.layout;
