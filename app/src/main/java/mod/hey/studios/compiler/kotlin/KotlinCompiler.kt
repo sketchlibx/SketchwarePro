@@ -1,6 +1,7 @@
 package mod.hey.studios.compiler.kotlin
 
 import a.a.a.ProjectBuilder
+import a.a.a.yq
 import mod.hey.studios.build.BuildSettings
 import mod.hey.studios.compiler.kotlin.KotlinCompilerUtil.*
 import mod.jbk.util.LogUtil
@@ -12,36 +13,30 @@ import java.io.File
 /**
  * Partly adapted from:
  * [https://github.com/tyron12233/CodeAssist/blob/main/build-logic/src/main/java/com/tyron/builder/compiler/incremental/kotlin/IncrementalKotlinCompiler.java]
- *
- * A huge thank you to [tyron][https://github.com/tyron12233] for porting `kotlinc` to Android.
  */
 class KotlinCompiler(
     private val builder: ProjectBuilder
 ) {
-    private val workspace = builder.yq
+    private val workspace: yq = builder.yq
 
-    /**
-     * Invokes `kotlinc`.
-     */
     @Throws(Throwable::class)
     fun compile() {
         val timeMillis = System.currentTimeMillis()
 
-        val filesToCompile = getFilesToCompile(workspace).apply {
-            if (!areAnyKtFilesPresent(workspace)) {
-                LogUtil.d(TAG, "No kotlin source files found, skipping kotlinc")
-                return
-            }
+        if (!areAnyKtFilesPresent(workspace)) {
+            LogUtil.d(TAG, "No kotlin source files found, skipping kotlinc")
+            return
         }
 
+        val filesToCompile = getFilesToCompile(workspace)
+
         val mKotlinHome = File(KotlinCompilerBridge.getKotlinHome(workspace)).apply { mkdirs() }
-        // Output in the same place as ecj, makes everything easier
         val mClassOutput = File(workspace.compiledClassesPath).apply { mkdirs() }
 
         val arguments = mutableListOf<String>().apply {
             // Classpath
             add("-cp")
-            add(builder.getClasspath())
+            add(builder.classpath)
 
             // Sources (.java & .kt)
             addAll(filesToCompile.map { it.absolutePath })
@@ -49,7 +44,7 @@ class KotlinCompiler(
 
         val compiler = K2JVMCompiler()
         val collector = DiagnosticCollector()
-        val plugins = getCompilerPlugins(workspace).map(File::getAbsolutePath).toTypedArray()
+        val plugins = getCompilerPlugins(workspace).map { it.absolutePath }.toTypedArray()
 
         val args = K2JVMCompilerArguments().apply {
             compileJava = false
@@ -71,8 +66,7 @@ class KotlinCompiler(
         // Log all diagnostics
         LogUtil.d(TAG, "kotlinc MessageCollector: $collector")
 
-        // kotlinc generates some .kotlin_module files that make D8 fail,
-        // delete them for now (?) TODO
+        // Delete .kotlin_module files that make D8 fail
         File(mClassOutput, "META-INF").deleteRecursively()
 
         if (collector.hasErrors()) {
