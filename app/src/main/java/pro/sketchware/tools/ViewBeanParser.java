@@ -35,7 +35,7 @@ import pro.sketchware.utility.InvokeUtil;
 
 public class ViewBeanParser {
 
-    private static final int[] viewsCount = new int[49];
+    private static final int[] viewsCount = new int[100];
     private final XmlPullParser parser;
     private boolean skipRoot;
     private Pair<String, Map<String, String>> rootAttributes;
@@ -62,10 +62,16 @@ public class ViewBeanParser {
     }
 
     public static String generateUniqueId(Set<String> ids, int type, String className) {
-        String prefix = wq.b(type);
+        String prefix;
+        if (type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT || type >= 49) {
+            prefix = "constraintLayout";
+        } else {
+            prefix = wq.b(type);
+        }
+        
         var name = ViewBean.getViewTypeName(type);
         if (type != ViewBean.VIEW_TYPE_LAYOUT_VSCROLLVIEW
-                || type != ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW) {
+                && type != ViewBean.VIEW_TYPE_LAYOUT_HSCROLLVIEW) {
             if (prefix.equals("linear")
                     && type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR
                     && !name.equals(className)) {
@@ -316,12 +322,10 @@ public class ViewBeanParser {
                     }
 
                     if (!isNativeToAll && !isNativeToType) {
-                        if (key.startsWith("android:layout_") || key.startsWith("app:layout_constraint")) {
-                            String cleanValue = value;
-                            if (cleanValue.contains("/")) {
-                                cleanValue = cleanValue.substring(cleanValue.indexOf("/") + 1);
-                            }
-                            bean.parentAttributes.put(key, cleanValue);
+                        if (key.startsWith("android:layout_")) {
+                            bean.parentAttributes.put(key, parseReferName(value, "/"));
+                        } else if (key.startsWith("app:layout_constraint")) {
+                            bean.parentAttributes.put(key, value); 
                         } else {
                             injectMap.put(key, value);
                         }

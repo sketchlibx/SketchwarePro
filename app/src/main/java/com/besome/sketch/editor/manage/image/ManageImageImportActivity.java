@@ -256,7 +256,7 @@ public class ManageImageImportActivity extends BaseAppCompatActivity implements 
             if (position == selectedItem) {
                 GradientDrawable border = new GradientDrawable();
                 border.setColor(Color.TRANSPARENT);
-                border.setStroke(SketchwareUtil.dpToPx(2), ThemeUtils.getColor(getApplicationContext(), R.attr.colorPrimary));
+                border.setStroke(SketchwareUtil.dpToPx(2), ThemeUtils.getColor(ManageImageImportActivity.this, R.attr.colorPrimary));
                 border.setCornerRadius(SketchwareUtil.dpToPx(4));
                 viewHolder.layout_item.setBackground(border);
             } else {

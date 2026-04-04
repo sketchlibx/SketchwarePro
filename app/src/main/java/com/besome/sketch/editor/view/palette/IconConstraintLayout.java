@@ -21,10 +21,9 @@ public class IconConstraintLayout extends IconBase {
     @Override
     public ViewBean getBean() {
         ViewBean viewBean = new ViewBean();
-        viewBean.type = ViewBean.VIEW_TYPE_LAYOUT_LINEAR; 
+        viewBean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
         LayoutBean layoutBean = viewBean.layout;
         layoutBean.width = -1;
-        layoutBean.height = -1;
         layoutBean.paddingLeft = 8;
         layoutBean.paddingTop = 8;
         layoutBean.paddingRight = 8;

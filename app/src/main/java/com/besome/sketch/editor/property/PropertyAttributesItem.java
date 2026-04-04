@@ -41,7 +41,6 @@ import pro.sketchware.utility.relativelayout.CircularDependencyDetector;
 @SuppressLint("ViewConstructor")
 public class PropertyAttributesItem extends LinearLayout implements View.OnClickListener {
     
-    // Relative Layout Constraints
     private static final String[] PARENT_RELATIVE = {
             "android:layout_centerInParent",
             "android:layout_centerVertical", "android:layout_centerHorizontal",
@@ -67,7 +66,6 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
             "android:layout_above", "android:layout_below"
     );
 
-    // Constraint Layout Constraints (NEW)
     private static final String[] PARENT_CONSTRAINT = {
             "app:layout_constraintTop_toTopOf", "app:layout_constraintTop_toBottomOf",
             "app:layout_constraintBottom_toTopOf", "app:layout_constraintBottom_toBottomOf",
@@ -170,12 +168,15 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
         showParentAttributes();
     }
 
-    // PRO LOGIC: Smart detection for ConstraintLayout Parent
     private boolean isParentConstraintLayout() {
-        if (bean == null || bean.parent == null) return false;
+        if (bean == null) return false;
+        
+        if (bean.parentType == 50) return true;
+        
+        if (bean.parent == null) return false;
         for (ViewBean b : beans) {
             if (b.id.equals(bean.parent)) {
-                // FIXED COMPILATION BUG: Used getViewTypeName instead of reflection
+                if (b.type == 50) return true; // Direct check
                 String className = ViewBean.getViewTypeName(b.type);
                 if (b.convert != null && b.convert.contains("ConstraintLayout")) return true;
                 return (className != null && className.contains("ConstraintLayout")) || 
@@ -218,15 +219,25 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
                                 if (RELATIVE_IDS.contains(attr) || CONSTRAINT_IDS.contains(attr)) {
                                     
                                     List<String> availableIds = new ArrayList<>(ids);
-                                    if (isConstraint) availableIds.add(0, "parent"); // Constraint Layout Parent feature
+                                    boolean currentIsConstraint = isConstraint && attr.startsWith("app:layout_constraint");
+                                    if (currentIsConstraint) availableIds.add(0, "parent"); 
 
                                     new MaterialAlertDialogBuilder(getContext())
                                             .setTitle("Choose a Target")
                                             .setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, availableIds), (d2, w2) -> {
                                                 var id = availableIds.get(w2);
                                                 
-                                                if (isConstraint || new CircularDependencyDetector(beans, bean).isLegalAttribute(id, attr)) {
-                                                    value.put(attr, id);
+                                                if (currentIsConstraint || new CircularDependencyDetector(beans, bean).isLegalAttribute(id, attr)) {
+                                                    if (currentIsConstraint) {
+                                                        if ("parent".equals(id)) {
+                                                            value.put(attr, id);
+                                                        } else {
+                                                            value.put(attr, "@id/" + id);
+                                                        }
+                                                    } else {
+                                                        value.put(attr, id);
+                                                    }
+                                                    
                                                     if (valueChangeListener != null)
                                                         valueChangeListener.a(key, value);
                                                     adapter.submitList(new ArrayList<>(value.keySet()));
@@ -307,10 +318,16 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
                 binding.tvName.setText(attr);
                 
                 String val = value.get(attr);
-                if ("parent".equals(val) || "true".equals(val) || "false".equals(val)) {
+                boolean currentIsConstraint = isParentConstraintLayout() && attr.startsWith("app:layout_constraint");
+                
+                if (currentIsConstraint) {
                     binding.tvValue.setText(val);
                 } else {
-                    binding.tvValue.setText("@id/" + val);
+                    if ("parent".equals(val) || "true".equals(val) || "false".equals(val)) {
+                        binding.tvValue.setText(val);
+                    } else {
+                        binding.tvValue.setText("@id/" + val);
+                    }
                 }
                 
                 binding.imgLeftIcon.setImageResource(R.drawable.ic_mtrl_code);
@@ -318,19 +335,33 @@ public class PropertyAttributesItem extends LinearLayout implements View.OnClick
                 
                 itemView.setOnClickListener(v -> {
                     var filteredIds = new ArrayList<>(ids);
-                    if (isParentConstraintLayout()) {
+                    if (currentIsConstraint) {
                         filteredIds.add(0, "parent");
                     }
-                    filteredIds.remove(value.get(attr));
+                    
+                    String rawVal = val;
+                    if (currentIsConstraint && rawVal != null && rawVal.startsWith("@id/")) {
+                        rawVal = rawVal.substring(4);
+                    }
+                    filteredIds.remove(rawVal);
                     
                     new MaterialAlertDialogBuilder(getContext())
                             .setTitle("Choose a Target")
                             .setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, filteredIds), (d, w) -> {
                                 var id = filteredIds.get(w);
-                                value.put(attr, id);
                                 
-                                if ("parent".equals(id)) binding.tvValue.setText("parent");
-                                else binding.tvValue.setText("@id/" + id);
+                                if (currentIsConstraint) {
+                                    if ("parent".equals(id)) {
+                                        value.put(attr, id);
+                                        binding.tvValue.setText(id);
+                                    } else {
+                                        value.put(attr, "@id/" + id);
+                                        binding.tvValue.setText("@id/" + id);
+                                    }
+                                } else {
+                                    value.put(attr, id);
+                                    binding.tvValue.setText("@id/" + id);
+                                }
                                 
                                 if (valueChangeListener != null)
                                     valueChangeListener.a(key, value);

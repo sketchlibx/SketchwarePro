@@ -234,7 +234,6 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
             String finalName = baseName;
             int counter = 1;
             
-            // Avoid duplicates
             while (alreadyAddedImageNames.contains(finalName) || outNames.contains(finalName)) {
                 finalName = baseName + "_" + counter;
                 counter++;
@@ -244,11 +243,9 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
         }
 
         Intent intent = new Intent();
-        // Support caller if it uses arrays
         intent.putStringArrayListExtra("iconNames", outNames);
         intent.putStringArrayListExtra("iconPaths", outPaths);
         
-        // Backward compatibility for single return fallback
         intent.putExtra("iconName", outNames.get(0));
         intent.putExtra("iconPath", outPaths.get(0));
         
@@ -487,13 +484,11 @@ public class ImportIconActivity extends BaseAppCompatActivity implements IconAda
                     String resFullname = adapter.getCurrentList().get(selectedIconPosition).second + File.separator + selected_icon_type + ".svg";
                     Intent intent = new Intent();
                     
-                    // Send Single Standard Payload
                     intent.putExtra("iconName", Helper.getText(dialogBinding.inputText));
                     intent.putExtra("iconPath", resFullname);
                     intent.putExtra("iconColor", selected_color);
                     intent.putExtra("iconColorHex", selected_color_hex);
                     
-                    // Also send array payload for consistency
                     ArrayList<String> n = new ArrayList<>(); n.add(Helper.getText(dialogBinding.inputText));
                     ArrayList<String> p = new ArrayList<>(); p.add(resFullname);
                     intent.putStringArrayListExtra("iconNames", n);

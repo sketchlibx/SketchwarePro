@@ -1,4 +1,4 @@
-package a.a.a;
+package pro.sketchware.tools;
 
 import static android.system.OsConstants.S_IRUSR;
 import static android.system.OsConstants.S_IWUSR;
@@ -840,8 +840,7 @@ public class ProjectBuilder {
              context.registerReceiver(receiver, new android.content.IntentFilter("com.sketchware.R8_COMPLETE"));
         }
         
-        Intent intent = new Intent();
-        intent.setClassName(context, "mod.pranav.build.R8Service");
+        Intent intent = new Intent(context, mod.pranav.build.R8Service.class);
         intent.putExtra("sc_id", yq.sc_id);
         intent.putExtra("args_path", argsFile.getAbsolutePath());
         context.startService(intent);
