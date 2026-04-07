@@ -5,7 +5,6 @@ import static pro.sketchware.utility.PropertiesUtil.parseReferName;
 
 import android.util.Pair;
 import android.view.View;
-import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 
@@ -134,6 +133,7 @@ public class ViewBeanParser {
             else if (className.contains("CardView")) type = 36;
             else if (className.contains("RecyclerView")) type = 48;
             else if (className.contains("FloatingActionButton") || className.contains("FAB")) type = ViewBean.VIEW_TYPE_WIDGET_FAB;
+            else if (className.contains("ConstraintLayout")) type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
         }
 
         return getViewTypeByTag(name, type);
@@ -231,8 +231,16 @@ public class ViewBeanParser {
                     } 
                     
                     if (!oldBeanFound && name.contains(".")) {
-                        isCustom = true;
-                        convert = name;
+                        if (type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT || className.equals("ConstraintLayout")) {
+                            isCustom = false;
+                            convert = "androidx.constraintlayout.widget.ConstraintLayout"; 
+                        } else {
+                            isCustom = true;
+                            convert = name;
+                        }
+                    } else if (type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+                         isCustom = false;
+                         convert = "androidx.constraintlayout.widget.ConstraintLayout";
                     }
 
                     ViewBean bean = new ViewBean(id, type);
@@ -242,11 +250,11 @@ public class ViewBeanParser {
 
                     ViewBean parent = viewStack.isEmpty() ? null : viewStack.peek();
                     int parentType = rootAttributes != null ? getViewTypeByClassName(rootAttributes.first) : ViewBean.VIEW_TYPE_LAYOUT_LINEAR;
+                    
                     bean.parent = parent != null ? parent.id : "root";
-                    bean.parentType =
-                            bean.parent.equals("root")
-                                    ? parentType
-                                    : parent.type;
+                    
+                    bean.parentType = bean.parent.equals("root") ? parentType : parent.type;
+                    
                     bean.index = index;
                     Map<String, String> attributes = new LinkedHashMap<>();
                     for (int i = 0; i < parser.getAttributeCount(); i++) {
@@ -321,7 +329,19 @@ public class ViewBeanParser {
                         if (key.startsWith("android:layout_")) {
                             bean.parentAttributes.put(key, parseReferName(value, "/"));
                         } else if (key.startsWith("app:layout_constraint")) {
-                            bean.parentAttributes.put(key, value); 
+                            String parsedValue = value;
+                            if (parsedValue.startsWith("@+id/")) {
+                                parsedValue = "@id/" + parsedValue.substring(5);
+                            } else if (!parsedValue.startsWith("@id/") && !parsedValue.equals("parent") && !parsedValue.equals("true") && !parsedValue.equals("false")) {
+                                try {
+                                    Float.parseFloat(parsedValue); 
+                                } catch (NumberFormatException e) {
+                                   if (!parsedValue.contains(":")) {
+                                       parsedValue = "@id/" + parsedValue;
+                                   }
+                                }
+                            }
+                            bean.parentAttributes.put(key, parsedValue);
                         } else {
                             injectMap.put(key, value);
                         }

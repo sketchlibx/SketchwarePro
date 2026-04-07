@@ -104,11 +104,7 @@
                 <data android:scheme="file" />
                 <data android:scheme="content" />
                 <data android:mimeType="*/*" />
-                <data android:host="*" />
                 <data android:pathPattern=".*\\.swb" />
-                <data android:pathPattern=".*\\..*\\.swb" />
-                <data android:pathPattern=".*\\..*\\..*\\.swb" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.swb" />
             </intent-filter>
         </activity>
         <activity

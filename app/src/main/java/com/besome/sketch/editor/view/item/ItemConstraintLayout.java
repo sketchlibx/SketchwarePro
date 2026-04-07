@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -50,8 +49,17 @@ public class ItemConstraintLayout extends ConstraintLayout implements ItemView, 
     }
 
     @Override
-    public boolean onInterceptTouchEvent(MotionEvent ev) {
-        return false; 
+    public void addView(View child, int index) {
+        int childCount = getChildCount();
+        if (index > childCount) {
+            super.addView(child);
+            return;
+        }
+        int i = 0;
+        while (i < childCount && getChildAt(i).getVisibility() != View.GONE) {
+            i++;
+        }
+        super.addView(child, index);
     }
 
     @Override
@@ -102,7 +110,6 @@ public class ItemConstraintLayout extends ConstraintLayout implements ItemView, 
             canvas.drawLine((float) measuredWidth, 0.0F, (float) measuredWidth, (float) measuredHeight, paint);
             canvas.drawLine(0.0F, (float) measuredHeight, (float) measuredWidth, (float) measuredHeight, paint);
         }
-
         super.onDraw(canvas);
     }
 
@@ -113,11 +120,9 @@ public class ItemConstraintLayout extends ConstraintLayout implements ItemView, 
             if (child instanceof ScrollContainer) {
                 ((ScrollContainer) child).setChildScrollEnabled(scrollEnabled);
             }
-
             if (child instanceof ItemHorizontalScrollView) {
                 ((ItemHorizontalScrollView) child).setScrollEnabled(scrollEnabled);
             }
-
             if (child instanceof ItemVerticalScrollView) {
                 ((ItemVerticalScrollView) child).setScrollEnabled(scrollEnabled);
             }

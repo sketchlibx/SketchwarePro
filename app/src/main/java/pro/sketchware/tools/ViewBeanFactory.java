@@ -24,7 +24,7 @@ public class ViewBeanFactory {
 
     public static int getConsideredTypeViewByName(String name, int def) {
         return switch (name) {
-            case "ConstraintLayout" -> ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+            case "ConstraintLayout", "androidx.constraintlayout.widget.ConstraintLayout" -> ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
             case "MaterialSwitch", "SwitchMaterial" -> ViewBean.VIEW_TYPE_WIDGET_SWITCH;
             case "MaterialCardView", "CardView" -> ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW;
             case "TextInputEditText" -> ViewBean.VIEW_TYPE_WIDGET_EDITTEXT;
@@ -149,7 +149,19 @@ public class ViewBeanFactory {
                     continue;
                 }
                 if (attrName.startsWith("app:layout_constraint")) {
-                    bean.parentAttributes.put(attrName, attrValue);
+                    String parsedValue = attrValue;
+                    if (parsedValue.startsWith("@+id/")) {
+                        parsedValue = "@id/" + parsedValue.substring(5);
+                    } else if (!parsedValue.startsWith("@id/") && !parsedValue.equals("parent") && !parsedValue.equals("true") && !parsedValue.equals("false")) {
+                        try {
+                            Float.parseFloat(parsedValue); 
+                        } catch (NumberFormatException e) {
+                           if (!parsedValue.contains(":")) {
+                               parsedValue = "@id/" + parsedValue;
+                           }
+                        }
+                    }
+                    bean.parentAttributes.put(attrName, parsedValue);
                     continue;
                 }
                 if (attrName.equals("tools:listitem")) {

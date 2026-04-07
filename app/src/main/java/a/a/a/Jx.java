@@ -84,7 +84,6 @@ public class Jx {
         return Lx.j(new Fx(projectFileBean.getActivityName(), buildConfig, blocks, isViewBindingEnabled).a(), false);
     }
 
-    // 🚀 NEW: Fetch custom blocks for onRequestPermissionsResult 
     public String requestPermissionsResult() {
         ArrayList<BlockBean> blocks = jC.a(projectDataManager.a).a(projectFileBean.getJavaName(), "onRequestPermissionsResult_onRequestPermissionsResult");
         return Lx.j(new Fx(projectFileBean.getActivityName(), buildConfig, blocks, isViewBindingEnabled).a(), false);
@@ -394,7 +393,6 @@ public class Jx {
         }
         sb.append("}").append(EOL);
 
-        // 🚀 MODIFIED: Generate onRequestPermissionsResult ONLY ONCE with User Blocks + Default Logic
         String userPermissionLogic = requestPermissionsResult();
         if ((permissionManager.hasPermission && !isFragment) || !userPermissionLogic.isEmpty()) {
             sb.append(EOL);
@@ -402,14 +400,12 @@ public class Jx {
             sb.append("public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {").append(EOL);
             sb.append("super.onRequestPermissionsResult(requestCode, permissions, grantResults);").append(EOL);
             
-            // Add default Sketchware logic if it requires permissions
             if (permissionManager.hasPermission && !isFragment) {
                 sb.append("if (requestCode == 1000) {").append(EOL);
                 sb.append("initializeLogic();").append(EOL);
                 sb.append("}").append(EOL);
             }
             
-            // Append the user's custom visual blocks logic
             if (!userPermissionLogic.isEmpty()) {
                 sb.append(userPermissionLogic).append(EOL);
             }
@@ -1103,7 +1099,8 @@ public class Jx {
                  ViewBeans.VIEW_TYPE_WIDGET_LOTTIEANIMATIONVIEW,
                  ViewBeans.VIEW_TYPE_WIDGET_YOUTUBEPLAYERVIEW,
                  ViewBeans.VIEW_TYPE_LAYOUT_TABLAYOUT,
-                 ViewBeans.VIEW_TYPE_LAYOUT_VIEWPAGER ->
+                 ViewBeans.VIEW_TYPE_LAYOUT_VIEWPAGER,
+                 ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT ->
                     true; 
             default -> false;
         };

@@ -415,7 +415,7 @@ public class ViewPropertyItems extends LinearLayout implements Kw, View.OnClickL
         a(bean, "property_layout_width");
         a(bean, "property_layout_height");
         
-        if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || bean.parentType == 50) { // TYPE_CONSTRAINT
+        if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE || bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             a(bean, "property_parent_attr");
         }
         

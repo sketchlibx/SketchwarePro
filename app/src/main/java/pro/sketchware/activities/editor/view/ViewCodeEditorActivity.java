@@ -217,43 +217,76 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
             if (isContentModified()) {
                 ArrayList<ViewBean> oldLayout = jC.a(sc_id).d(filename);
                 String xmlToParse = editor.getText().toString();
-                xmlToParse = xmlToParse.replace("androidx.constraintlayout.widget.ConstraintLayout", "RelativeLayout");
-                
-                var parser = new ViewBeanParser(xmlToParse, oldLayout);
-                parser.setSkipRoot(true);
 
+                var parser = new ViewBeanParser(xmlToParse, oldLayout);
+                parser.setSkipRoot(false);
                 var parsedLayout = parser.parse();
-                
+
+                for (ViewBean bean : parsedLayout) {
+                    if (bean.convert != null && bean.convert.contains("ConstraintLayout")) {
+                        bean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                        bean.isCustomWidget = false;
+                        bean.convert = "androidx.constraintlayout.widget.ConstraintLayout";
+                    }
+                }
+
                 if (oldLayout != null) {
                     for (ViewBean newBean : parsedLayout) {
                         for (ViewBean oldBean : oldLayout) {
-                            if (newBean.id.equals(oldBean.id) && (oldBean.type == 50 || oldBean.convert.contains("ConstraintLayout"))) {
-                                newBean.type = oldBean.type;
-                                newBean.convert = oldBean.convert;
-                                newBean.isCustomWidget = oldBean.isCustomWidget;
-                                newBean.customView = oldBean.customView;
+                            if (newBean.id.equals(oldBean.id)) {
+                                if (oldBean.type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT ||
+                                    (oldBean.convert != null && oldBean.convert.contains("ConstraintLayout"))) {
+                                    newBean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                                    newBean.convert = "androidx.constraintlayout.widget.ConstraintLayout";
+                                    newBean.isCustomWidget = false;
+                                    newBean.customView = oldBean.customView;
+                                } else if (newBean.type == 0 || newBean.type == 14) {
+                                    newBean.type = oldBean.type;
+                                    newBean.clearClassInfo();
+                                }
+                                break;
                             }
                         }
                     }
                 }
-                
+
+                for (ViewBean child : parsedLayout) {
+                    if (!"root".equals(child.parent)) {
+                        for (ViewBean parent : parsedLayout) {
+                            if (child.parent.equals(parent.id)) {
+                                child.parentType = parent.type;
+                                break;
+                            }
+                        }
+                    }
+                    child.parentClassInfo = null;
+                }
+
                 for (ViewBean viewBean : parsedLayout) {
-                    CircularDependencyDetector detector = new CircularDependencyDetector(parsedLayout, viewBean);
-                    for (String attr : viewBean.parentAttributes.keySet()) {
-                        String targetId = viewBean.parentAttributes.get(attr);
-                        if (!detector.isLegalAttribute(targetId, attr)) {
-                            SketchwareUtil.toastError("Circular dependency found in \"" + viewBean.name + "\"\n" +
-                                    "Please resolve the issue before saving");
-                            return;
+                    CircularDependencyDetector detector =
+                            new CircularDependencyDetector(parsedLayout, viewBean);
+                    if (viewBean.parentAttributes != null) {
+                        for (String attr : viewBean.parentAttributes.keySet()) {
+                            String targetId = viewBean.parentAttributes.get(attr);
+                            if (!detector.isLegalAttribute(targetId, attr)) {
+                                SketchwareUtil.toastError(
+                                        "Circular dependency found in \"" + viewBean.name + "\"\n" +
+                                                "Please resolve the issue before saving"
+                                );
+                                return;
+                            }
                         }
                     }
                 }
 
-                content = editor.getText().toString();
+                content = xmlToParse;
+
                 if (!isEdited) {
                     isEdited = true;
                 }
+
                 SketchwareUtil.toast("Saved");
+
             } else {
                 SketchwareUtil.toast("No changes to save");
             }
@@ -270,47 +303,69 @@ public class ViewCodeEditorActivity extends BaseAppCompatActivity {
         try {
             ArrayList<ViewBean> oldLayout = jC.a(sc_id).d(filename);
             String xmlToParse = content;
-            xmlToParse = xmlToParse.replace("androidx.constraintlayout.widget.ConstraintLayout", "RelativeLayout");
-            
+
             var parser = new ViewBeanParser(xmlToParse, oldLayout);
-            parser.setSkipRoot(true);
+            parser.setSkipRoot(false);
             var parsedLayout = parser.parse();
-            
+
+            for (ViewBean bean : parsedLayout) {
+                if (bean.convert != null && bean.convert.contains("ConstraintLayout")) {
+                    bean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                    bean.isCustomWidget = false;
+                    bean.convert = "androidx.constraintlayout.widget.ConstraintLayout";
+                }
+            }
+
             if (oldLayout != null) {
                 for (ViewBean newBean : parsedLayout) {
                     for (ViewBean oldBean : oldLayout) {
                         if (newBean.id.equals(oldBean.id)) {
-                            if (oldBean.type == 50 || oldBean.convert.contains("ConstraintLayout")) {
-                                newBean.type = oldBean.type;
-                                newBean.convert = oldBean.convert;
-                                newBean.isCustomWidget = oldBean.isCustomWidget;
+                            if (oldBean.type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT ||
+                                (oldBean.convert != null && oldBean.convert.contains("ConstraintLayout"))) {
+                                newBean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+                                newBean.convert = "androidx.constraintlayout.widget.ConstraintLayout";
+                                newBean.isCustomWidget = false;
                                 newBean.customView = oldBean.customView;
                             } else if (newBean.type == 0 || newBean.type == 14) {
                                 newBean.type = oldBean.type;
-                                newBean.clearClassInfo(); 
+                                newBean.clearClassInfo();
                             }
-                            newBean.parentType = oldBean.parentType;
-                            newBean.parentClassInfo = null; 
                             break;
                         }
                     }
                 }
             }
 
+            for (ViewBean child : parsedLayout) {
+                if (!"root".equals(child.parent)) {
+                    for (ViewBean parent : parsedLayout) {
+                        if (child.parent.equals(parent.id)) {
+                            child.parentType = parent.type;
+                            break;
+                        }
+                    }
+                }
+                child.parentClassInfo = null;
+            }
+
             var root = parser.getRootAttributes();
             rootLayoutManager.set(filename, InjectRootLayoutManager.toRoot(root));
+
             HistoryViewBean bean = new HistoryViewBean();
             bean.actionOverride(parsedLayout, oldLayout);
-            
+
             var cc = cC.c(sc_id);
             if (!cc.c.containsKey(filename)) {
                 cc.e(filename);
             }
+
             cc.a(filename);
             cc.a(filename, bean);
-            
+
             jC.a(sc_id).c.put(filename, parsedLayout);
+
             setResult(RESULT_OK);
+
         } catch (Exception e) {
             SketchwareUtil.toastError(e.toString());
         }

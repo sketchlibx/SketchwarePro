@@ -31,6 +31,9 @@ public class InjectRootLayoutManager {
     }
 
     public static Root toRoot(Pair<String, Map<String, String>> root) {
+        if (root == null) {
+            return getDefaultRootLayout();
+        }
         return new Root(root.first, root.second);
     }
 
@@ -48,24 +51,30 @@ public class InjectRootLayoutManager {
     }
 
     public Root getLayoutByFileName(String name) {
-        return get().getOrDefault(name, getDefaultRootLayout());
+        Map<String, Root> map = get();
+        return map != null ? map.getOrDefault(name, getDefaultRootLayout()) : getDefaultRootLayout();
     }
 
     public Map<String, Root> get() {
         if (FileUtil.isExistFile(path)) {
-            return new Gson()
-                    .fromJson(
-                            FileUtil.readFile(path),
-                            new TypeToken<LinkedHashMap<String, Root>>() {
-                            }.getType());
+            try {
+                Map<String, Root> data = new Gson().fromJson(
+                        FileUtil.readFile(path),
+                        new TypeToken<LinkedHashMap<String, Root>>() {}.getType());
+                        
+                return data != null ? data : new LinkedHashMap<>();
+            } catch (Exception e) {
+
+                return new LinkedHashMap<>();
+            }
         }
         return new LinkedHashMap<>();
     }
 
     public ViewBean toBean(String name) {
         Root root = getLayoutByFileName(name);
-        ViewBean viewBean = new ViewBean("root", ViewBeanParser.getViewTypeByClassName(root.className));
-        viewBean.convert = root.className;
+        ViewBean viewBean = new ViewBean("root", ViewBeanParser.getViewTypeByClassName(root.getClassName()));
+        viewBean.convert = root.getClassName();
         new ViewBeanFactory(viewBean).applyAttributes(root.getAttributes());
         return viewBean;
     }

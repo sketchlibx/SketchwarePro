@@ -91,9 +91,10 @@ public class AttributeConstants {
                     "android:layout_alignParentEnd",
                     "android:layout_alignParentRight",
                     "android:layout_alignParentBottom",
-                    "android:layout_alignBaseline",
-                    
-                    // Added ConstraintLayout Attributes
+                    "android:layout_alignBaseline");
+
+    public static final List<String> CONSTRAINT_ATTRIBUTES =
+            Arrays.asList(
                     "app:layout_constraintTop_toTopOf",
                     "app:layout_constraintTop_toBottomOf",
                     "app:layout_constraintBottom_toTopOf",
@@ -106,7 +107,23 @@ public class AttributeConstants {
                     "app:layout_constraintLeft_toRightOf",
                     "app:layout_constraintRight_toLeftOf",
                     "app:layout_constraintRight_toRightOf",
-                    "app:layout_constraintBaseline_toBaselineOf");
+                    "app:layout_constraintBaseline_toBaselineOf",
+                    "app:layout_constraintCircle",
+                    "app:layout_constraintHorizontal_bias", 
+                    "app:layout_constraintVertical_bias",
+                    "app:layout_constraintDimensionRatio", 
+                    "app:layout_constraintWidth_percent",
+                    "app:layout_constraintHeight_percent", 
+                    "app:layout_constraintHorizontal_weight",
+                    "app:layout_constraintVertical_weight", 
+                    "app:layout_constraintHorizontal_chainStyle",
+                    "app:layout_constraintVertical_chainStyle", 
+                    "app:layout_editor_absoluteX",
+                    "app:layout_editor_absoluteY", 
+                    "app:layout_constraintCircleRadius",
+                    "app:layout_constraintCircleAngle",
+                    "app:layout_constrainedWidth", 
+                    "app:layout_constrainedHeight");
 
     public static Map<String, Map<String, String>> MAP_ATTR_ENUM = new HashMap<>();
     public static Map<String, Map<String, Integer>> MAP_ATTR_FLAG = new HashMap<>();

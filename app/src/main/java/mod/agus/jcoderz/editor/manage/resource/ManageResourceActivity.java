@@ -3,8 +3,10 @@ package mod.agus.jcoderz.editor.manage.resource;
 import android.annotation.SuppressLint;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,6 +37,7 @@ import dev.pranav.filepicker.SelectionMode;
 import mod.bobur.VectorDrawableLoader;
 import mod.hey.studios.code.SrcCodeEditor;
 import mod.hey.studios.util.Helper;
+import mod.hilal.saif.activities.tools.ConfigActivity;
 import pro.sketchware.R;
 import pro.sketchware.databinding.DialogCreateNewFileLayoutBinding;
 import pro.sketchware.databinding.DialogInputLayoutBinding;
@@ -44,6 +47,7 @@ import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileResConfig;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.utility.ThemeUtils;
 
 @SuppressLint("SetTextI18n")
 public class ManageResourceActivity extends BaseAppCompatActivity {
@@ -57,17 +61,14 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
 
     private ManageFileBinding binding;
 
+    private boolean isTreeViewEnabled;
+    private ArrayList<FileNode> rootNodes;
+    private final ArrayList<FileNode> flatNodesList = new ArrayList<>();
+
     public static String getLastDirectory(String path) {
-        // Get the index of the last occurrence of '/' character
         int lastSlashIndex = path.lastIndexOf('/');
-
-        // Get the substring from the start to the lastSlashIndex
         String parentPath = path.substring(0, lastSlashIndex);
-
-        // Get the index of the last occurrence of '/' in the parentPath
         lastSlashIndex = parentPath.lastIndexOf('/');
-
-        // Extract the last directory name
         return parentPath.substring(lastSlashIndex + 1);
     }
 
@@ -92,8 +93,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
     private void checkDir() {
         if (FileUtil.isExistFile(fpu.getPathResource(numProj))) {
             temp = fpu.getPathResource(numProj);
-            handleAdapter(temp);
-            handleFab();
+            refresh();
             return;
         }
         FileUtil.makeDir(fpu.getPathResource(numProj));
@@ -106,14 +106,91 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         checkDir();
     }
 
-    private void handleAdapter(String str) {
-        ArrayList<String> resourceFile = frc.getResourceFile(str);
-        //noinspection Java8ListSort
-        Collections.sort(resourceFile, String.CASE_INSENSITIVE_ORDER);
-        adapter = new CustomAdapter(resourceFile);
-        binding.filesListRecyclerView.setAdapter(adapter);
+    private void forceRefreshTree() {
+        rootNodes = null;
+        refresh();
+    }
 
-        binding.noContentLayout.setVisibility(resourceFile.isEmpty() ? View.VISIBLE : View.GONE);
+    private void refresh() {
+        isTreeViewEnabled = ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW)
+                && ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_RESOURCE_TREE_VIEW);
+
+        if (isTreeViewEnabled) {
+            if (rootNodes == null) {
+                rootNodes = new ArrayList<>();
+                ArrayList<String> paths = frc.getResourceFile(fpu.getPathResource(numProj));
+                Collections.sort(paths, String.CASE_INSENSITIVE_ORDER);
+                for (String p : paths) {
+                    rootNodes.add(new FileNode(p, 0));
+                }
+            }
+            refreshFlatList();
+            handleFab();
+        } else {
+            ArrayList<String> resourceFile = frc.getResourceFile(temp);
+            Collections.sort(resourceFile, String.CASE_INSENSITIVE_ORDER);
+            
+            flatNodesList.clear();
+            for (String p : resourceFile) {
+                flatNodesList.add(new FileNode(p, 0));
+            }
+            
+            if (adapter == null) {
+                adapter = new CustomAdapter();
+                binding.filesListRecyclerView.setAdapter(adapter);
+            } else {
+                adapter.notifyDataSetChanged();
+            }
+            binding.noContentLayout.setVisibility(resourceFile.isEmpty() ? View.VISIBLE : View.GONE);
+            handleFab();
+        }
+    }
+
+    private void refreshFlatList() {
+        flatNodesList.clear();
+        for (FileNode node : rootNodes) addNodeToFlatList(node);
+
+        if (adapter == null) {
+            adapter = new CustomAdapter();
+            binding.filesListRecyclerView.setAdapter(adapter);
+        } else {
+            adapter.notifyDataSetChanged();
+        }
+        binding.noContentLayout.setVisibility(flatNodesList.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    private void addNodeToFlatList(FileNode node) {
+        flatNodesList.add(node);
+        if (node.isFolder && node.isExpanded) {
+            if (node.children == null) {
+                node.children = new ArrayList<>();
+                ArrayList<String> paths = frc.getResourceFile(node.path);
+                Collections.sort(paths, String.CASE_INSENSITIVE_ORDER);
+                for (String p : paths) {
+                    node.children.add(new FileNode(p, node.depth + 1));
+                }
+            }
+            for (FileNode child : node.children) {
+                addNodeToFlatList(child);
+            }
+        }
+    }
+
+    public static class FileNode {
+        public String path;
+        public String name;
+        public boolean isFolder;
+        public boolean isExpanded;
+        public int depth;
+        public ArrayList<FileNode> children;
+
+        public FileNode(String p, int d) {
+            path = p;
+            name = Uri.parse(p).getLastPathSegment();
+            isFolder = FileUtil.isDirectory(p);
+            depth = d;
+            isExpanded = false;
+        }
     }
 
     private boolean isInMainDirectory() {
@@ -122,7 +199,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
 
     private void handleFab() {
         var optionsButton = binding.showOptionsButton;
-        if (isInMainDirectory()) {
+        if (isInMainDirectory() || isTreeViewEnabled) {
             optionsButton.setText("Create new");
             hideShowOptionsButton(true);
         } else {
@@ -134,7 +211,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         binding.topAppBar.setTitle("Resource Manager");
         binding.topAppBar.setNavigationOnClickListener(v -> onBackPressed());
         binding.showOptionsButton.setOnClickListener(view -> {
-            if (isInMainDirectory()) {
+            if (isInMainDirectory() || isTreeViewEnabled) {
                 createNewDialog(true);
                 return;
             }
@@ -142,14 +219,13 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         });
         binding.closeButton.setOnClickListener(view -> hideShowOptionsButton(true));
         binding.createNewButton.setOnClickListener(v -> {
-            createNewDialog(isInMainDirectory());
+            createNewDialog(isInMainDirectory() || isTreeViewEnabled);
             hideShowOptionsButton(true);
         });
         binding.importNewButton.setOnClickListener(v -> {
             dialog.show(getSupportFragmentManager(), "filePicker");
             hideShowOptionsButton(true);
         });
-
     }
 
     private void hideShowOptionsButton(boolean isHide) {
@@ -167,23 +243,30 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        binding.filesListRecyclerView.getAdapter().notifyDataSetChanged();
+        if (binding.filesListRecyclerView.getAdapter() != null) {
+            binding.filesListRecyclerView.getAdapter().notifyDataSetChanged();
+        }
     }
 
     @Override
     public void onBackPressed() {
-        try {
-            temp = temp.substring(0, temp.lastIndexOf("/"));
-            if (temp.contains("resource")) {
-                handleAdapter(temp);
-                handleFab();
-                return;
+        if (isTreeViewEnabled) {
+            setResult(RESULT_OK);
+            finish();
+            super.onBackPressed();
+        } else {
+            try {
+                temp = temp.substring(0, temp.lastIndexOf("/"));
+                if (temp.contains("resource")) {
+                    refresh();
+                    return;
+                }
+            } catch (IndexOutOfBoundsException ignored) {
             }
-        } catch (IndexOutOfBoundsException ignored) {
+            setResult(RESULT_OK);
+            finish();
+            super.onBackPressed();
         }
-        setResult(RESULT_OK);
-        finish();
-        super.onBackPressed();
     }
 
     private void createNewDialog(boolean isFolder) {
@@ -228,7 +311,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 } else {
                     FileUtil.writeFile(path, "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
                 }
-                handleAdapter(temp);
+                forceRefreshTree();
                 SketchwareUtil.toast("Created file successfully");
                 dialog.dismiss();
             });
@@ -267,8 +350,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                         SketchwareUtil.toastError("Couldn't import resource! [" + e.getMessage() + "]");
                     }
                 }
-                handleAdapter(temp);
-                handleFab();
+                forceRefreshTree();
             }
         };
 
@@ -277,7 +359,6 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
 
     private void showRenameDialog(String path) {
         DialogInputLayoutBinding dialogBinding = DialogInputLayoutBinding.inflate(getLayoutInflater());
-
         var inputText = dialogBinding.inputText;
 
         var dialog = new MaterialAlertDialogBuilder(this)
@@ -291,13 +372,11 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                         } else {
                             SketchwareUtil.toastError("Renaming failed");
                         }
-                        handleAdapter(temp);
-                        handleFab();
+                        forceRefreshTree();
                     }
                     dialogInterface.dismiss();
                 })
                 .create();
-
 
         try {
             inputText.setText(path.substring(path.lastIndexOf("/") + 1));
@@ -312,14 +391,14 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         inputText.requestFocus();
     }
 
-    private void showDeleteDialog(int position) {
+    private void showDeleteDialog(String path) {
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Delete " + Uri.fromFile(new File(adapter.getItem(position))).getLastPathSegment() + "?")
-                .setMessage("Are you sure you want to delete this " + (FileUtil.isDirectory(adapter.getItem(position)) ? "folder" : "file") + "? "
+                .setTitle("Delete " + Uri.fromFile(new File(path)).getLastPathSegment() + "?")
+                .setMessage("Are you sure you want to delete this " + (FileUtil.isDirectory(path) ? "folder" : "file") + "? "
                         + "This action cannot be undone.")
                 .setPositiveButton(R.string.common_word_delete, (dialog, which) -> {
-                    FileUtil.deleteFile(frc.listFileResource.get(position));
-                    handleAdapter(temp);
+                    FileUtil.deleteFile(path);
+                    forceRefreshTree();
                     SketchwareUtil.toast("Deleted");
                 })
                 .setNegativeButton(R.string.common_word_cancel, null)
@@ -327,12 +406,12 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 .show();
     }
 
-    private void goEdit(int position) {
-        if (frc.listFileResource.get(position).endsWith("xml")) {
+    private void goEdit(String path) {
+        if (path.endsWith("xml")) {
             Intent intent = new Intent();
             intent.setClass(getApplicationContext(), SrcCodeEditor.class);
-            intent.putExtra("title", Uri.parse(frc.listFileResource.get(position)).getLastPathSegment());
-            intent.putExtra("content", frc.listFileResource.get(position));
+            intent.putExtra("title", Uri.parse(path).getLastPathSegment());
+            intent.putExtra("content", path);
             intent.putExtra("xml", "");
             if (getIntent().hasExtra("sc_id")) {
                 intent.putExtra("sc_id", getIntent().getStringExtra("sc_id"));
@@ -343,12 +422,12 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         }
     }
 
-    private void goEdit2(int position) {
-        if (frc.listFileResource.get(position).endsWith("xml")) {
+    private void goEdit2(String path) {
+        if (path.endsWith("xml")) {
             Intent intent = new Intent();
             intent.setClass(getApplicationContext(), SrcCodeEditor.class);
-            intent.putExtra("title", Uri.parse(frc.listFileResource.get(position)).getLastPathSegment());
-            intent.putExtra("content", frc.listFileResource.get(position));
+            intent.putExtra("title", Uri.parse(path).getLastPathSegment());
+            intent.putExtra("content", path);
             intent.putExtra("xml", "");
             startActivity(intent);
         } else {
@@ -358,10 +437,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
 
     private class CustomAdapter extends RecyclerView.Adapter<CustomAdapter.ViewHolder> {
 
-        private final ArrayList<String> data;
-
-        public CustomAdapter(ArrayList<String> arrayList) {
-            data = arrayList;
+        public CustomAdapter() {
         }
 
         @NonNull
@@ -373,46 +449,107 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            String path = data.get(position);
+            FileNode node = flatNodesList.get(position);
+            String path = node.path;
             var binding = holder.binding;
 
-            binding.more.setVisibility(FileUtil.isDirectory(path) ? View.GONE : View.VISIBLE);
-            binding.title.setText(Uri.parse(path).getLastPathSegment());
+            binding.title.setText(node.name);
 
-            if (FileUtil.isDirectory(path)) {
-                binding.icon.setImageResource(R.drawable.ic_mtrl_folder);
+            if (isTreeViewEnabled) {
+                int indentPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 24, getResources().getDisplayMetrics());
+                ViewGroup.MarginLayoutParams iconParams = (ViewGroup.MarginLayoutParams) binding.icon.getLayoutParams();
+                iconParams.setMarginStart(indentPx);
+                binding.icon.setLayoutParams(iconParams);
+                binding.getRoot().setPadding(0, 0, 0, 0);
+
+                int iconPadding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
+                binding.title.setCompoundDrawablePadding(iconPadding);
+
+                binding.more.setVisibility(View.VISIBLE);
+
+                if (node.isFolder) {
+                    binding.title.setTypeface(null, Typeface.BOLD);
+                    binding.icon.setVisibility(View.VISIBLE);
+                    binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_mtrl_arrow_down : R.drawable.ic_mtrl_chevron_right_24);
+                    binding.icon.setColorFilter(ThemeUtils.getColor(ManageResourceActivity.this, R.attr.colorOnSurfaceVariant));
+                    binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mtrl_folder, 0, 0, 0);
+                } else {
+                    binding.title.setTypeface(null, Typeface.NORMAL);
+                    binding.icon.setVisibility(View.INVISIBLE);
+                    binding.icon.clearColorFilter();
+                    try {
+                        if (FileUtil.isImageFile(path)) {
+                            Glide.with(ManageResourceActivity.this).load(new File(path)).into(binding.icon);
+                            binding.icon.setVisibility(View.VISIBLE);
+                            ViewGroup.MarginLayoutParams imgParams = (ViewGroup.MarginLayoutParams) binding.icon.getLayoutParams();
+                            imgParams.setMarginStart(indentPx + (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics()));
+                            binding.icon.setLayoutParams(imgParams);
+                            binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+                        } else if (path.endsWith(".xml") && "drawable".equals(getLastDirectory(path))) {
+                            new VectorDrawableLoader().setImageVectorFromFile(binding.icon, path);
+                            binding.icon.setVisibility(View.VISIBLE);
+                            ViewGroup.MarginLayoutParams imgParams = (ViewGroup.MarginLayoutParams) binding.icon.getLayoutParams();
+                            imgParams.setMarginStart(indentPx + (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics()));
+                            binding.icon.setLayoutParams(imgParams);
+                            binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+                        } else {
+                            binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mtrl_file, 0, 0, 0);
+                        }
+                    } catch (Exception ignored) {
+                        binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mtrl_file, 0, 0, 0);
+                    }
+                }
             } else {
-                try {
-                    if (FileUtil.isImageFile(path)) {
-                        Glide.with(ManageResourceActivity.this).load(new File(path)).into(binding.icon);
-                    } else if (path.endsWith(".xml") && "drawable".equals(getLastDirectory(path))) {
-                        new VectorDrawableLoader().setImageVectorFromFile(binding.icon, path);
-                    } else {
+                ViewGroup.MarginLayoutParams iconParams = (ViewGroup.MarginLayoutParams) binding.icon.getLayoutParams();
+                iconParams.setMarginStart(0);
+                binding.icon.setLayoutParams(iconParams);
+                binding.getRoot().setPadding(0, 0, 0, 0);
+
+                binding.icon.setVisibility(View.VISIBLE);
+                binding.icon.clearColorFilter();
+                binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+                binding.title.setTypeface(null, Typeface.NORMAL);
+
+                binding.more.setVisibility(node.isFolder ? View.GONE : View.VISIBLE);
+
+                if (node.isFolder) {
+                    binding.icon.setImageResource(R.drawable.ic_mtrl_folder);
+                } else {
+                    try {
+                        if (FileUtil.isImageFile(path)) {
+                            Glide.with(ManageResourceActivity.this).load(new File(path)).into(binding.icon);
+                        } else if (path.endsWith(".xml") && "drawable".equals(getLastDirectory(path))) {
+                            new VectorDrawableLoader().setImageVectorFromFile(binding.icon, path);
+                        } else {
+                            binding.icon.setImageResource(R.drawable.ic_mtrl_file);
+                        }
+                    } catch (Exception ignored) {
                         binding.icon.setImageResource(R.drawable.ic_mtrl_file);
                     }
-                } catch (Exception ignored) {
-                    binding.icon.setImageResource(R.drawable.ic_mtrl_file);
                 }
             }
 
             binding.more.setOnClickListener(v -> {
                 PopupMenu popupMenu = new PopupMenu(ManageResourceActivity.this, v);
                 popupMenu.inflate(R.menu.popup_menu_double);
-                popupMenu.getMenu().getItem(0).setVisible(false);
+                if (node.isFolder) {
+                    popupMenu.getMenu().getItem(0).setVisible(false);
+                    popupMenu.getMenu().getItem(1).setVisible(false);
+                }
                 popupMenu.setOnMenuItemClickListener(item -> {
                     switch (item.getTitle().toString()) {
                         case "Edit with..." -> {
-                            if (frc.listFileResource.get(position).endsWith("xml")) {
+                            if (path.endsWith("xml")) {
                                 Intent intent = new Intent(Intent.ACTION_VIEW);
-                                intent.setDataAndType(Uri.fromFile(new File(frc.listFileResource.get(position))), "text/plain");
+                                intent.setDataAndType(Uri.fromFile(new File(path)), "text/plain");
                                 startActivity(intent);
                             } else {
                                 SketchwareUtil.toast("Only XML files can be edited");
                             }
                         }
-                        case "Edit" -> goEdit2(position);
-                        case "Delete" -> showDeleteDialog(position);
-                        case "Rename" -> showRenameDialog(frc.listFileResource.get(position));
+                        case "Edit" -> goEdit2(path);
+                        case "Delete" -> showDeleteDialog(path);
+                        case "Rename" -> showRenameDialog(path);
                         default -> {
                             return false;
                         }
@@ -423,11 +560,11 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
             });
 
             binding.getRoot().setOnLongClickListener(v -> {
-                if (FileUtil.isDirectory(frc.listFileResource.get(position))) {
+                if (node.isFolder) {
                     PopupMenu popupMenu = new PopupMenu(ManageResourceActivity.this, binding.more);
                     popupMenu.getMenu().add("Delete");
                     popupMenu.setOnMenuItemClickListener(item -> {
-                        showDeleteDialog(position);
+                        showDeleteDialog(path);
                         return true;
                     });
                     popupMenu.show();
@@ -436,24 +573,29 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 }
                 return true;
             });
+            
             binding.getRoot().setOnClickListener(view -> {
-                if (FileUtil.isDirectory(frc.listFileResource.get(position))) {
-                    temp = frc.listFileResource.get(position);
-                    handleAdapter(temp);
-                    handleFab();
+                if (node.isFolder) {
+                    temp = path;
+                    if (isTreeViewEnabled) {
+                        node.isExpanded = !node.isExpanded;
+                        refreshFlatList();
+                    } else {
+                        refresh();
+                    }
                     return;
                 }
-                goEdit(position);
+                goEdit(path);
             });
         }
 
         public String getItem(int position) {
-            return data.get(position);
+            return flatNodesList.get(position).path;
         }
 
         @Override
         public int getItemCount() {
-            return data.size();
+            return flatNodesList.size();
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {

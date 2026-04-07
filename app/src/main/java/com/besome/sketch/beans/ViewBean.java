@@ -31,7 +31,6 @@ public class ViewBean extends nA implements Parcelable {
     public static final int CHOICE_MODE_SINGLE = 1;
     public static final int CHOICE_MODE_MULTI = 2;
 
-
     public static final int DEFAULT_PROGRESS = 0;
     public static final int DEFAULT_MAX = 100;
 
@@ -219,6 +218,10 @@ public class ViewBean extends nA implements Parcelable {
         name = id;
         this.type = type;
         parent = null;
+        if (type == VIEW_TYPE_LAYOUT_CONSTRAINT) {
+            isCustomWidget = false;
+            convert = "androidx.constraintlayout.widget.ConstraintLayout";
+        }
     }
 
     public static Parcelable.Creator<ViewBean> getCreator() {
@@ -228,7 +231,7 @@ public class ViewBean extends nA implements Parcelable {
     public static int getViewTypeByTypeName(String typeName) {
         return switch (typeName) {
             case "RelativeLayout" -> VIEW_TYPE_LAYOUT_RELATIVE;
-            case "ConstraintLayout" -> VIEW_TYPE_LAYOUT_CONSTRAINT;
+            case "ConstraintLayout", "androidx.constraintlayout.widget.ConstraintLayout" -> VIEW_TYPE_LAYOUT_CONSTRAINT;
             case "Switch" -> VIEW_TYPE_WIDGET_SWITCH;
             case "MapView" -> VIEW_TYPE_WIDGET_MAPVIEW;
             case "ProgressBar" -> VIEW_TYPE_WIDGET_PROGRESSBAR;
@@ -378,6 +381,11 @@ public class ViewBean extends nA implements Parcelable {
         progressStyle = other.progressStyle;
         parentAttributes = new HashMap<>(other.parentAttributes);
         isCustomWidget = other.isCustomWidget;
+        
+        if (type == VIEW_TYPE_LAYOUT_CONSTRAINT) {
+            isCustomWidget = false;
+            convert = "androidx.constraintlayout.widget.ConstraintLayout";
+        }
     }
 
     @Override
@@ -413,7 +421,8 @@ public class ViewBean extends nA implements Parcelable {
                 !adUnitId.equals(viewBean.adUnitId) || !text.isEqual(viewBean.text) || !layout.isEqual(viewBean.layout) ||
                 !image.isEqual(viewBean.image) || !indeterminate.equals(viewBean.indeterminate) ||
                 !inject.equals(viewBean.inject) || !convert.equals(viewBean.convert) ||
-                !progressStyle.equals(viewBean.progressStyle) || !parentAttributes.equals(viewBean.parentAttributes)) {
+                !progressStyle.equals(viewBean.progressStyle) || !parentAttributes.equals(viewBean.parentAttributes) ||
+                isCustomWidget != viewBean.isCustomWidget) {
             return false;
         }
 

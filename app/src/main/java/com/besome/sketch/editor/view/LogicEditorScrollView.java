@@ -51,6 +51,9 @@ public class LogicEditorScrollView extends FrameLayout {
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (!scrollEnabled) {
+        return false;
+        }
         if (!isPossibleScroll()) {
             return false;
         }
@@ -80,7 +83,7 @@ public class LogicEditorScrollView extends FrameLayout {
     public boolean onTouchEvent(MotionEvent event) {
         int min;
         int i = 0;
-        if (!isPossibleScroll()) {
+        if (!scrollEnabled || !isPossibleScroll()) {
             return false;
         }
         View child = getChildAt(0);

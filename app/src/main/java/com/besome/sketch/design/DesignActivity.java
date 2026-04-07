@@ -79,7 +79,6 @@ import java.util.concurrent.Executors;
 
 import a.a.a.DB;
 import a.a.a.GB;
-import a.a.a.Ox;
 import a.a.a.ProjectBuilder;
 import a.a.a.ViewEditorFragment;
 import a.a.a.bB;
@@ -91,6 +90,7 @@ import a.a.a.jC;
 import a.a.a.kC;
 import a.a.a.lC;
 import a.a.a.mB;
+import a.a.a.Ox;
 import a.a.a.rs;
 import a.a.a.wq;
 import a.a.a.yB;
@@ -104,6 +104,7 @@ import mod.hey.studios.activity.managers.assets.ManageAssetsActivity;
 import mod.hey.studios.activity.managers.java.ManageJavaActivity;
 import mod.hey.studios.code.SrcCodeEditor;
 import mod.hey.studios.compiler.kotlin.KotlinCompilerBridge;
+import mod.hey.studios.project.ProjectSettings;
 import mod.hey.studios.project.custom_blocks.CustomBlocksDialog;
 import mod.hey.studios.project.proguard.ManageProguardActivity;
 import mod.hey.studios.project.proguard.ProguardHandler;
@@ -111,7 +112,6 @@ import mod.hey.studios.project.stringfog.ManageStringFogFragment;
 import mod.hey.studios.project.stringfog.StringfogHandler;
 import mod.hey.studios.util.Helper;
 import mod.hey.studios.util.SystemLogPrinter;
-import mod.sketchlibx.search.GlobalSearchDialog;
 import mod.hilal.saif.activities.android_manifest.AndroidManifestInjection;
 import mod.hilal.saif.activities.tools.ConfigActivity;
 import mod.jbk.build.BuildProgressReceiver;
@@ -120,6 +120,7 @@ import mod.jbk.diagnostic.CompileErrorSaver;
 import mod.jbk.diagnostic.MissingFileException;
 import mod.jbk.util.LogUtil;
 import mod.khaled.logcat.LogReaderActivity;
+import mod.sketchlibx.search.GlobalSearchDialog;
 import pro.sketchware.R;
 import pro.sketchware.activities.appcompat.ManageAppCompatActivity;
 import pro.sketchware.activities.editor.command.ManageXMLCommandActivity;
@@ -131,12 +132,20 @@ import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
 import pro.sketchware.utility.ThemeUtils;
 import pro.sketchware.utility.apk.ApkSignatures;
-import mod.hey.studios.project.ProjectSettings;
 
 public class DesignActivity extends BaseAppCompatActivity implements View.OnClickListener {
     public static String sc_id;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
+    
+    public final ActivityResultLauncher<Intent> changeOpenFile = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        if (result.getResultCode() == Activity.RESULT_OK) {
+            assert result.getData() != null;
+            projectFile = result.getData().getParcelableExtra("project_file");
+            refresh();
+        }
+    });
+    
     private ImageView xmlLayoutOrientation;
     private boolean B;
     private int currentTabNumber;
@@ -155,7 +164,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
     private String currentJavaFileName;
     private ViewEditorFragment viewTabAdapter;
     private FloatingProgressWindow fProgress;
-
+    
     private final ActivityResultLauncher<Intent> openCollectionManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null) {
@@ -163,7 +172,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
-
+    
     private final ActivityResultLauncher<Intent> openResourcesManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null && viewPager.getCurrentItem() == 0) {
@@ -172,7 +181,7 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
-
+    
     private final ActivityResultLauncher<Intent> openViewCodeEditor = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             if (viewTabAdapter != null) {
@@ -180,24 +189,16 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
-
+    
     private rs eventTabAdapter;
     private br componentTabAdapter;
-
+    
     private final ActivityResultLauncher<Intent> openImageManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
         }
     });
-
-    public final ActivityResultLauncher<Intent> changeOpenFile = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-        if (result.getResultCode() == Activity.RESULT_OK) {
-            assert result.getData() != null;
-            projectFile = result.getData().getParcelableExtra("project_file");
-            refresh();
-        }
-    });
-
+    
     private final ActivityResultLauncher<Intent> openLibraryManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
@@ -206,15 +207,14 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
             }
         }
     });
-
+    
     private final ActivityResultLauncher<Intent> openViewManager = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getResultCode() == RESULT_OK) {
             refresh();
         }
     });
-
+    
     private BuildTask currentBuildTask;
-
     private final BroadcastReceiver buildCancelReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {

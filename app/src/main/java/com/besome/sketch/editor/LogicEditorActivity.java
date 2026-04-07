@@ -850,7 +850,6 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
                                 }
                                 if (view != null) {
                                     String customView = view.customView;
-                                    // 🔥 FIXED: Prevent Sketchware from thinking "NONE" is a valid XML file!
                                     if (customView != null && !customView.equals("NONE") && !customView.equals("none") && !customView.isEmpty()) {
                                         xmlName = ProjectFileBean.getXmlName(customView);
                                     }
@@ -1549,7 +1548,6 @@ public class LogicEditorActivity extends BaseAppCompatActivity implements View.O
             }
             if (view != null) {
                 String customViewName = view.customView;
-                // 🔥 FIXED THE BUG HERE AGAIN JUST IN CASE:
                 if (customViewName != null && !customViewName.equals("NONE") && !customViewName.equals("none") && !customViewName.isEmpty()) {
                     xmlName = ProjectFileBean.getXmlName(customViewName);
                 }

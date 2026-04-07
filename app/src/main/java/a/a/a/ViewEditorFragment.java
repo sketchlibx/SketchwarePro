@@ -230,7 +230,8 @@ public class ViewEditorFragment extends qA {
         viewEditor.addWidgetLayout(PaletteWidget.a.d, "");
         viewEditor.extraWidgetLayout("", "RadioGroup");
         viewEditor.extraWidgetLayout("", "RelativeLayout");
-        viewEditor.extraWidgetLayout("", "androidx.constraintlayout.widget.ConstraintLayout");
+        
+        viewEditor.extraWidgetLayout("", "ConstraintLayout");
         
         widgetsCreatorManager.addWidgetsByTitle("Layouts");
 
@@ -322,7 +323,7 @@ public class ViewEditorFragment extends qA {
                     for (ViewBean viewBean : historyViewBean.getAddedData()) {
                         jC.a(sc_id).a(projectFileBean.getXmlName(), viewBean);
                     }
-                    viewEditor.a(viewEditor.a(historyViewBean.getAddedData(), false), false);
+                    viewEditor.a(viewEditor.a(eC.a(historyViewBean.getAddedData()), false), false);
                 } else if (actionType == HistoryViewBean.ACTION_TYPE_UPDATE) {
                     ViewBean prevUpdateData = historyViewBean.getPrevUpdateData();
                     ViewBean currentUpdateData = historyViewBean.getCurrentUpdateData();
@@ -360,8 +361,9 @@ public class ViewEditorFragment extends qA {
     public void i() {
         invalidateOptionsMenu();
         if (projectFileBean != null) {
-            b(jC.a(sc_id).d(projectFileBean.getXmlName()));
-            a(jC.a(sc_id).h(projectFileBean.getXmlName()));
+            viewEditor.j(); 
+            viewEditor.a(eC.a(jC.a(sc_id).d(projectFileBean.getXmlName())), false); 
+            a(jC.a(sc_id).h(projectFileBean.getXmlName())); 
         }
     }
 
@@ -406,7 +408,7 @@ public class ViewEditorFragment extends qA {
                     for (ViewBean view : historyViewBean.getRemovedData()) {
                         jC.a(sc_id).a(projectFileBean.getXmlName(), view);
                     }
-                    viewEditor.a(viewEditor.a(historyViewBean.getRemovedData(), false), false);
+                    viewEditor.a(viewEditor.a(eC.a(historyViewBean.getRemovedData()), false), false);
                 } else if (actionType == HistoryViewBean.ACTION_TYPE_MOVE) {
                     ViewBean movedData = historyViewBean.getMovedData();
                     ViewBean viewBean = jC.a(sc_id).c(projectFileBean.getXmlName(), movedData.id);

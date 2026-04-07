@@ -44,6 +44,7 @@ import com.besome.sketch.editor.view.item.ItemButton;
 import com.besome.sketch.editor.view.item.ItemCalendarView;
 import com.besome.sketch.editor.view.item.ItemCardView;
 import com.besome.sketch.editor.view.item.ItemCheckBox;
+import com.besome.sketch.editor.view.item.ItemConstraintLayout;
 import com.besome.sketch.editor.view.item.ItemEditText;
 import com.besome.sketch.editor.view.item.ItemFloatingActionButton;
 import com.besome.sketch.editor.view.item.ItemHorizontalScrollView;
@@ -54,7 +55,6 @@ import com.besome.sketch.editor.view.item.ItemMapView;
 import com.besome.sketch.editor.view.item.ItemProgressBar;
 import com.besome.sketch.editor.view.item.ItemRecyclerView;
 import com.besome.sketch.editor.view.item.ItemRelativeLayout;
-import com.besome.sketch.editor.view.item.ItemConstraintLayout;
 import com.besome.sketch.editor.view.item.ItemSearchView;
 import com.besome.sketch.editor.view.item.ItemSeekBar;
 import com.besome.sketch.editor.view.item.ItemSignInButton;
@@ -161,6 +161,9 @@ public class ViewPane extends RelativeLayout {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
         highlightedTextView.setVisibility(GONE);
+
+        highlightedTextView.setFocusable(false);
+        highlightedTextView.setFocusableInTouchMode(false);
     }
 
     public void clearViewPane() {
@@ -170,6 +173,7 @@ public class ViewPane extends RelativeLayout {
     }
 
     public void removeFabView() {
+        if (rootLayout == null) return;
         View findViewWithTag = findViewWithTag("_fab");
         if (findViewWithTag == null) {
             return;
@@ -178,14 +182,23 @@ public class ViewPane extends RelativeLayout {
     }
 
     public void removeView(ViewBean viewBean) {
+        if (rootLayout == null || viewBean == null) return;
+
         ViewGroup viewGroup = rootLayout.findViewWithTag(viewBean.parent);
-        viewGroup.removeView(rootLayout.findViewWithTag(viewBean.id));
+        if (viewGroup == null) return;
+
+        View childView = rootLayout.findViewWithTag(viewBean.id);
+        if (childView != null) {
+            viewGroup.removeView(childView);
+        }
+
         if (viewGroup instanceof ScrollContainer) {
             ((ScrollContainer) viewGroup).reindexChildren();
         }
     }
 
     public ItemView g(ViewBean viewBean) {
+        if (rootLayout == null || viewBean == null) return null;
         View findViewWithTag;
         String preId = viewBean.preId;
         if (preId != null && !preId.isEmpty() && !preId.equals(viewBean.id)) {
@@ -198,23 +211,39 @@ public class ViewPane extends RelativeLayout {
         } else {
             findViewWithTag = rootLayout.findViewWithTag(viewBean.id);
         }
-        updateItemView(findViewWithTag, viewBean);
-        return (ItemView) findViewWithTag;
+        if (findViewWithTag != null) {
+            updateItemView(findViewWithTag, viewBean);
+            return (ItemView) findViewWithTag;
+        }
+        return null;
     }
 
     public ItemView d(ViewBean viewBean) {
+        if (rootLayout == null || viewBean == null) return null;
         View findViewWithTag = rootLayout.findViewWithTag(viewBean.id);
-        if (viewBean.id.charAt(0) == '_') {
-            findViewWithTag = findViewWithTag(viewBean.id);
+
+        if (findViewWithTag == null) {
+            if (viewBean.id.charAt(0) == '_') {
+                findViewWithTag = findViewWithTag(viewBean.id);
+            }
         }
+        if (findViewWithTag == null) return null;
+
         String str = viewBean.preParent;
         if (str != null && !str.isEmpty() && !viewBean.parent.equals(viewBean.preParent)) {
             ViewGroup viewGroup = rootLayout.findViewWithTag(viewBean.preParent);
-            viewGroup.removeView(findViewWithTag);
-            ((ScrollContainer) viewGroup).reindexChildren();
+            if (viewGroup != null) {
+                viewGroup.removeView(findViewWithTag);
+                if (viewGroup instanceof ScrollContainer) {
+                    ((ScrollContainer) viewGroup).reindexChildren();
+                }
+            }
             addViewAndUpdateIndex(findViewWithTag);
         } else if (viewBean.index != viewBean.preIndex) {
-            ((ViewGroup) rootLayout.findViewWithTag(viewBean.parent)).removeView(findViewWithTag);
+            ViewGroup viewGroup = rootLayout.findViewWithTag(viewBean.parent);
+            if (viewGroup != null) {
+                viewGroup.removeView(findViewWithTag);
+            }
             addViewAndUpdateIndex(findViewWithTag);
         }
         viewBean.preId = "";
@@ -492,13 +521,19 @@ public class ViewPane extends RelativeLayout {
                 ((ItemLinearLayout) view).setLayoutGravity(viewBean.layout.gravity);
             }
         }
-        
-        if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
-            updateRelative(view, injectHandler);
-        } else if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
-            updateConstraint(view, injectHandler);
+
+        int actualParentType = getActualParentType(view, viewBean.parentType);
+
+        if (view.getParent() instanceof ItemConstraintLayout) {
+            actualParentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+        } else if (view.getParent() instanceof ItemRelativeLayout) {
+            actualParentType = ViewBean.VIEW_TYPE_LAYOUT_RELATIVE;
         }
-        
+
+        if (actualParentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+            updateRelative(view, injectHandler);
+        }
+
         if (classInfo.a("TextView")) {
             TextView textView = (TextView) view;
             updateTextView(textView, viewBean);
@@ -648,6 +683,13 @@ public class ViewPane extends RelativeLayout {
                 }
             }
         }
+
+        final int resolvedParentType = actualParentType;
+        post(() -> {
+            if (resolvedParentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+                updateConstraint(view, injectHandler);
+            }
+        });
     }
 
     public ItemView findItemViewByTag(String str) {
@@ -709,19 +751,44 @@ public class ViewPane extends RelativeLayout {
         ViewInfo viewInfo = getViewInfo(x, y);
         if (viewInfo == null) {
             resetView(true);
-        } else if (this.viewInfo != viewInfo) {
-            resetView(true);
-            ViewGroup viewGroup = (ViewGroup) viewInfo.view();
-            viewGroup.addView(highlightedTextView, viewInfo.index());
-            if (viewGroup instanceof LinearLayout) {
-                highlightedTextView.setLayoutParams(new LinearLayout.LayoutParams(width, height));
-            } else if (viewGroup instanceof FrameLayout) {
-                highlightedTextView.setLayoutParams(new FrameLayout.LayoutParams(width, height));
-            } else {
-                highlightedTextView.setLayoutParams(new LayoutParams(width, height));
+        } else {
+            if (this.viewInfo != viewInfo) {
+                resetView(true);
+                ViewGroup viewGroup = (ViewGroup) viewInfo.view();
+                viewGroup.addView(highlightedTextView, viewInfo.index());
+                if (viewGroup instanceof LinearLayout) {
+                    highlightedTextView.setLayoutParams(new LinearLayout.LayoutParams(width, height));
+                } else if (viewGroup instanceof FrameLayout) {
+                    highlightedTextView.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+                } else {
+                    highlightedTextView.setLayoutParams(new LayoutParams(width, height));
+                }
+                highlightedTextView.setVisibility(View.VISIBLE);
+                this.viewInfo = viewInfo;
             }
-            highlightedTextView.setVisibility(View.VISIBLE);
-            this.viewInfo = viewInfo;
+
+            View targetView = viewInfo.view();
+            if (targetView instanceof ItemVerticalScrollView) {
+                int topEdge = viewInfo.rect().top;
+                int bottomEdge = viewInfo.rect().bottom;
+                int threshold = (int) (40 * getScaleY());
+
+                if (y < topEdge + threshold) {
+                    targetView.scrollBy(0, -15);
+                } else if (y > bottomEdge - threshold) {
+                    targetView.scrollBy(0, 15);
+                }
+            } else if (targetView instanceof ItemHorizontalScrollView) {
+                int leftEdge = viewInfo.rect().left;
+                int rightEdge = viewInfo.rect().right;
+                int threshold = (int) (40 * getScaleX());
+
+                if (x < leftEdge + threshold) {
+                    targetView.scrollBy(-15, 0);
+                } else if (x > rightEdge - threshold) {
+                    targetView.scrollBy(15, 0);
+                }
+            }
         }
     }
 
@@ -773,7 +840,7 @@ public class ViewPane extends RelativeLayout {
                 viewBean.preParent = viewBean.parent;
                 viewBean.parent = view.getTag().toString();
                 viewBean.preParentType = viewBean.parentType;
-                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT; // Type 50 Mapping
+                viewBean.parentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
             }
         } else {
             viewBean.preIndex = viewBean.index;
@@ -1010,17 +1077,20 @@ public class ViewPane extends RelativeLayout {
     }
 
     public void addViewAndUpdateIndex(View view) {
+        if (view == null || !(view instanceof ItemView)) return;
         ViewBean bean = ((ItemView) view).getBean();
-        if (rootLayout != null) {
+        if (rootLayout != null && bean != null) {
             ViewGroup viewGroup = rootLayout.findViewWithTag(bean.parent);
-            viewGroup.addView(view, bean.index);
-            if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
-                updateRelativeParentViews(view, new InjectAttributeHandler(bean));
-            } else if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
-                updateConstraintParentViews(view, new InjectAttributeHandler(bean));
-            }
-            if (viewGroup instanceof ScrollContainer scrollContainer) {
-                scrollContainer.reindexChildren();
+            if (viewGroup != null) {
+                viewGroup.addView(view, bean.index);
+                if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+                    updateRelativeParentViews(view, new InjectAttributeHandler(bean));
+                } else if (bean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+                    post(() -> updateConstraintParentViews(view, new InjectAttributeHandler(bean)));
+                }
+                if (viewGroup instanceof ScrollContainer scrollContainer) {
+                    scrollContainer.reindexChildren();
+                }
             }
         }
     }
@@ -1047,6 +1117,15 @@ public class ViewPane extends RelativeLayout {
 
     private void updateLayout(View view, ViewBean viewBean) {
         crashlytics.log("ViewPane: Updating layout");
+
+        int actualParentType = getActualParentType(view, viewBean.parentType);
+
+        if (view.getParent() instanceof ItemConstraintLayout) {
+            actualParentType = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+        } else if (view.getParent() instanceof ItemRelativeLayout) {
+            actualParentType = ViewBean.VIEW_TYPE_LAYOUT_RELATIVE;
+        }
+
         LayoutBean layoutBean = viewBean.layout;
         int width = layoutBean.width;
         int height = layoutBean.height;
@@ -1067,7 +1146,8 @@ public class ViewPane extends RelativeLayout {
         } else {
             view.setBackgroundColor(PropertiesUtil.parseColor(colorsEditorManager.getColorValue(context, viewBean.layout.backgroundResColor, 3, material3LibraryManager.canUseNightVariantColors())));
         }
-        if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_LINEAR) {
+
+        if (actualParentType == ViewBean.VIEW_TYPE_LAYOUT_LINEAR) {
             LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(width, height);
             layoutParams2.setMargins(leftMargin, topMargin, rightMargin, bottomMargin);
             LayoutBean layoutBean3 = viewBean.layout;
@@ -1078,13 +1158,13 @@ public class ViewPane extends RelativeLayout {
             }
             layoutParams2.weight = viewBean.layout.weight;
             view.setLayoutParams(layoutParams2);
-        } else if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
+        } else if (actualParentType == ViewBean.VIEW_TYPE_LAYOUT_RELATIVE) {
             RelativeLayout.LayoutParams layoutParams2 = new RelativeLayout.LayoutParams(width, height);
             layoutParams2.setMargins(leftMargin, topMargin, rightMargin, bottomMargin);
             LayoutBean layoutBean3 = viewBean.layout;
             view.setPadding(layoutBean3.paddingLeft, layoutBean3.paddingTop, layoutBean3.paddingRight, layoutBean3.paddingBottom);
             view.setLayoutParams(layoutParams2);
-        } else if (viewBean.parentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
+        } else if (actualParentType == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             ConstraintLayout.LayoutParams layoutParams2 = new ConstraintLayout.LayoutParams(width, height);
             layoutParams2.setMargins(leftMargin, topMargin, rightMargin, bottomMargin);
             LayoutBean layoutBean3 = viewBean.layout;
@@ -1140,43 +1220,111 @@ public class ViewPane extends RelativeLayout {
     private void updateConstraint(View view, InjectAttributeHandler handler) {
         var bean = handler.getBean();
         var parentAttr = bean.parentAttributes;
-        
+
         if (!(view.getLayoutParams() instanceof ConstraintLayout.LayoutParams)) {
             return;
         }
-        
+
         ConstraintLayout.LayoutParams params = (ConstraintLayout.LayoutParams) view.getLayoutParams();
 
-        params.topToTop = resolveConstraintId(parentAttr.get("app:layout_constraintTop_toTopOf"));
-        params.topToBottom = resolveConstraintId(parentAttr.get("app:layout_constraintTop_toBottomOf"));
-        params.bottomToTop = resolveConstraintId(parentAttr.get("app:layout_constraintBottom_toTopOf"));
-        params.bottomToBottom = resolveConstraintId(parentAttr.get("app:layout_constraintBottom_toBottomOf"));
-        params.startToStart = resolveConstraintId(parentAttr.get("app:layout_constraintStart_toStartOf"));
-        params.startToEnd = resolveConstraintId(parentAttr.get("app:layout_constraintStart_toEndOf"));
-        params.endToStart = resolveConstraintId(parentAttr.get("app:layout_constraintEnd_toStartOf"));
-        params.endToEnd = resolveConstraintId(parentAttr.get("app:layout_constraintEnd_toEndOf"));
-        params.leftToLeft = resolveConstraintId(parentAttr.get("app:layout_constraintLeft_toLeftOf"));
-        params.leftToRight = resolveConstraintId(parentAttr.get("app:layout_constraintLeft_toRightOf"));
-        params.rightToLeft = resolveConstraintId(parentAttr.get("app:layout_constraintRight_toLeftOf"));
-        params.rightToRight = resolveConstraintId(parentAttr.get("app:layout_constraintRight_toRightOf"));
-        params.baselineToBaseline = resolveConstraintId(parentAttr.get("app:layout_constraintBaseline_toBaselineOf"));
+        params.topToTop = -1;
+        params.topToBottom = -1;
+        params.bottomToTop = -1;
+        params.bottomToBottom = -1;
+        params.startToStart = -1;
+        params.startToEnd = -1;
+        params.endToStart = -1;
+        params.endToEnd = -1;
+        params.leftToLeft = -1;
+        params.leftToRight = -1;
+        params.rightToLeft = -1;
+        params.rightToRight = -1;
+        params.baselineToBaseline = -1;
+
+        params.topToTop = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintTop_toTopOf"));
+        params.topToBottom = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintTop_toBottomOf"));
+        params.bottomToTop = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintBottom_toTopOf"));
+        params.bottomToBottom = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintBottom_toBottomOf"));
+        params.startToStart = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintStart_toStartOf"));
+        params.startToEnd = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintStart_toEndOf"));
+        params.endToStart = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintEnd_toStartOf"));
+        params.endToEnd = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintEnd_toEndOf"));
+        params.leftToLeft = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintLeft_toLeftOf"));
+        params.leftToRight = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintLeft_toRightOf"));
+        params.rightToLeft = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintRight_toLeftOf"));
+        params.rightToRight = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintRight_toRightOf"));
+        params.baselineToBaseline = resolveConstraintId(getConstraintAttr(handler, parentAttr, "layout_constraintBaseline_toBaselineOf"));
+
+        String hBias = getConstraintAttr(handler, parentAttr, "layout_constraintHorizontal_bias");
+        if (hBias != null && !hBias.isEmpty()) {
+            try { params.horizontalBias = Float.parseFloat(hBias); } catch (Exception ignored) {}
+        }
+        String vBias = getConstraintAttr(handler, parentAttr, "layout_constraintVertical_bias");
+        if (vBias != null && !vBias.isEmpty()) {
+            try { params.verticalBias = Float.parseFloat(vBias); } catch (Exception ignored) {}
+        }
+        String ratio = getConstraintAttr(handler, parentAttr, "layout_constraintDimensionRatio");
+        if (ratio != null && !ratio.isEmpty()) {
+            params.dimensionRatio = ratio;
+        }
+        String matchConstraintPercentWidth = getConstraintAttr(handler, parentAttr, "layout_constraintWidth_percent");
+        if (matchConstraintPercentWidth != null && !matchConstraintPercentWidth.isEmpty()) {
+            try { params.matchConstraintPercentWidth = Float.parseFloat(matchConstraintPercentWidth); } catch (Exception ignored) {}
+        }
+        String matchConstraintPercentHeight = getConstraintAttr(handler, parentAttr, "layout_constraintHeight_percent");
+        if (matchConstraintPercentHeight != null && !matchConstraintPercentHeight.isEmpty()) {
+            try { params.matchConstraintPercentHeight = Float.parseFloat(matchConstraintPercentHeight); } catch (Exception ignored) {}
+        }
 
         view.setLayoutParams(params);
     }
 
+    private String getConstraintAttr(InjectAttributeHandler handler, Object parentAttrObj, String attrName) {
+        String val = handler.getAttributeValueOf(attrName);
+        if (val != null && !val.trim().isEmpty()) {
+            return val.trim();
+        }
+        if (parentAttrObj instanceof java.util.Map) {
+            java.util.Map<?, ?> parentMap = (java.util.Map<?, ?>) parentAttrObj;
+            Object mapVal = parentMap.get("app:" + attrName);
+            if (mapVal != null && !mapVal.toString().trim().isEmpty()) {
+                return mapVal.toString().trim();
+            }
+            mapVal = parentMap.get(attrName);
+            if (mapVal != null && !mapVal.toString().trim().isEmpty()) {
+                return mapVal.toString().trim();
+            }
+        }
+        return "";
+    }
+
     private int resolveConstraintId(String value) {
-        if (value == null || value.isEmpty()) return -1;
+        if (value == null || value.trim().isEmpty()) return -1;
+        value = value.trim();
+
         if ("parent".equals(value) || "0".equals(value)) {
             return 0;
         }
+
         String tag = value;
         if (tag.startsWith("@id/")) {
             tag = tag.substring(4);
+        } else if (tag.startsWith("@+id/")) {
+        tag = tag.substring(5);
         }
-        View refView = rootLayout.findViewWithTag(tag);
+
+        View refView = null;
+        if (rootLayout != null) {
+            refView = rootLayout.findViewWithTag(tag);
+        }
+        if (refView == null) {
+            refView = findViewWithTag(tag);
+        }
+
         if (refView != null) {
             return refView.getId();
         }
+
         return -1;
     }
 

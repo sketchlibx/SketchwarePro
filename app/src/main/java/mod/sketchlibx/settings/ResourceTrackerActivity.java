@@ -1,10 +1,17 @@
 package mod.sketchlibx.settings;
 
+import android.app.Dialog;
+import android.content.Context;
+import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -18,13 +25,18 @@ import com.besome.sketch.lib.base.BaseAppCompatActivity;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
+import a.a.a.By;
+import a.a.a.MA;
 import a.a.a.jC;
 import pro.sketchware.R;
 import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.utility.ThemeUtils;
 
 public class ResourceTrackerActivity extends BaseAppCompatActivity {
 
@@ -36,6 +48,9 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
     private View contentLayout;
     private View noContentLayout;
     private ExtendedFloatingActionButton fabCleanAll;
+
+    private Dialog progressDialog;
+    private TextView progressDialogText;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -66,30 +81,53 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
                     .setTitle("Clean All Resources?")
                     .setMessage("This will safely remove all " + currentList.size() + " unused resources from your project. This cannot be undone.")
                     .setPositiveButton("Clean All", (dialog, which) -> {
-                        for (ProjectAnalyzerEngine.UnusedResource res : currentList) {
-                            performDeletion(res);
-                        }
-                        saveAllChanges();
-                        SketchwareUtil.toast("Optimized! Removed " + currentList.size() + " items.");
-                        loadData();
+                        showProgress("Cleaning unused resources...");
+                        new CleanAllTask(ResourceTrackerActivity.this).execute();
                     })
                     .setNegativeButton("Cancel", null)
                     .show();
         });
 
-        loadData();
+        new Handler(Looper.getMainLooper()).postDelayed(this::loadData, 300L);
+    }
+
+    private void showProgress(String message) {
+        if (progressDialog == null) {
+            LinearLayout container = new LinearLayout(this);
+            container.setOrientation(LinearLayout.HORIZONTAL);
+            container.setGravity(Gravity.CENTER_VERTICAL);
+            container.setPadding(64, 48, 64, 48);
+
+            CircularProgressIndicator progressIndicator = new CircularProgressIndicator(this, null, com.google.android.material.R.style.Widget_Material3Expressive_CircularProgressIndicator_Wavy);
+            progressIndicator.setIndeterminate(true);
+            
+            progressDialogText = new TextView(this);
+            progressDialogText.setTextSize(16f);
+            progressDialogText.setPadding(48, 0, 0, 0);
+            progressDialogText.setTextColor(ThemeUtils.getColor(this, R.attr.colorOnSurface));
+            progressDialogText.setTypeface(null, Typeface.BOLD);
+
+            container.addView(progressIndicator);
+            container.addView(progressDialogText);
+
+            progressDialog = new MaterialAlertDialogBuilder(this)
+                    .setView(container)
+                    .setCancelable(false)
+                    .create();
+        }
+        progressDialogText.setText(message);
+        if (!progressDialog.isShowing()) progressDialog.show();
+    }
+
+    private void hideProgress() {
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
     }
 
     private void loadData() {
-        currentList = ProjectAnalyzerEngine.scanForUnusedResources(sc_id);
-        if (adapter == null) {
-            adapter = new TrackerAdapter();
-            recyclerView.setAdapter(adapter);
-        } else {
-            adapter.notifyDataSetChanged();
-        }
-
-        updateUIState();
+        showProgress("Scanning for unused resources...");
+        new LoadTask(this).execute();
     }
 
     private void updateUIState() {
@@ -124,6 +162,135 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
         jC.b(sc_id).j();
     }
 
+    private static class LoadTask extends MA {
+        private final WeakReference<ResourceTrackerActivity> activityRef;
+
+        public LoadTask(ResourceTrackerActivity activity) {
+            super(activity);
+            this.activityRef = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void b() throws By {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null) {
+                activity.currentList = ProjectAnalyzerEngine.scanForUnusedResources(activity.sc_id);
+            }
+        }
+
+        @Override
+        public void a() {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                if (activity.adapter == null) {
+                    activity.adapter = activity.new TrackerAdapter();
+                    activity.recyclerView.setAdapter(activity.adapter);
+                } else {
+                    activity.adapter.notifyDataSetChanged();
+                }
+                activity.updateUIState();
+            }
+        }
+
+        @Override
+        public void a(String str) {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                SketchwareUtil.toastError("Load failed: " + str);
+            }
+        }
+    }
+
+    private static class CleanAllTask extends MA {
+        private final WeakReference<ResourceTrackerActivity> activityRef;
+
+        public CleanAllTask(ResourceTrackerActivity activity) {
+            super(activity);
+            this.activityRef = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void b() throws By {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null) {
+                for (ProjectAnalyzerEngine.UnusedResource res : activity.currentList) {
+                    activity.performDeletion(res);
+                }
+                activity.saveAllChanges();
+                activity.currentList.clear();
+            }
+        }
+
+        @Override
+        public void a() {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                SketchwareUtil.toast("Optimized! Removed unused items.");
+                if (activity.adapter != null) {
+                    activity.adapter.notifyDataSetChanged();
+                }
+                activity.updateUIState();
+            }
+        }
+
+        @Override
+        public void a(String str) {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                SketchwareUtil.toastError("Clean failed: " + str);
+            }
+        }
+    }
+
+    private static class DeleteSingleTask extends MA {
+        private final WeakReference<ResourceTrackerActivity> activityRef;
+        private final ProjectAnalyzerEngine.UnusedResource res;
+        private final int position;
+
+        public DeleteSingleTask(ResourceTrackerActivity activity, ProjectAnalyzerEngine.UnusedResource res, int position) {
+            super(activity);
+            this.activityRef = new WeakReference<>(activity);
+            this.res = res;
+            this.position = position;
+        }
+
+        @Override
+        public void b() throws By {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null) {
+                activity.performDeletion(res);
+                activity.saveAllChanges();
+            }
+        }
+
+        @Override
+        public void a() {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                activity.currentList.remove(position);
+                if (activity.adapter != null) {
+                    activity.adapter.notifyItemRemoved(position);
+                    activity.adapter.notifyItemRangeChanged(position, activity.currentList.size());
+                }
+                activity.updateUIState();
+            }
+        }
+
+        @Override
+        public void a(String str) {
+            ResourceTrackerActivity activity = activityRef.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.hideProgress();
+                SketchwareUtil.toastError("Remove failed: " + str);
+            }
+        }
+    }
+
     private class TrackerAdapter extends RecyclerView.Adapter<TrackerAdapter.ViewHolder> {
 
         @NonNull
@@ -148,13 +315,8 @@ public class ResourceTrackerActivity extends BaseAppCompatActivity {
                         .setTitle("Remove Unused Item?")
                         .setMessage("Are you sure you want to remove '" + res.name + "' from your project?")
                         .setPositiveButton("Remove", (dialog, which) -> {
-                            performDeletion(res);
-                            saveAllChanges();
-                            currentList.remove(position);
-                            notifyItemRemoved(position);
-                            notifyItemRangeChanged(position, currentList.size());
-                            
-                            updateUIState();
+                            showProgress("Removing " + res.name + "...");
+                            new DeleteSingleTask(ResourceTrackerActivity.this, res, position).execute();
                         })
                         .setNegativeButton("Cancel", null)
                         .show();

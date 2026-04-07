@@ -219,6 +219,7 @@ public class ItemVerticalScrollView extends FrameLayout implements ItemView, Scr
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent motionEvent) {
+        // f == false means scrolling is disabled (e.g., during dragging)
         if (!f) {
             return false;
         } else if (getChildCount() <= 0) {
@@ -301,6 +302,8 @@ public class ItemVerticalScrollView extends FrameLayout implements ItemView, Scr
 
     @Override
     public void setChildScrollEnabled(boolean scrollEnabled) {
+        this.setScrollEnabled(scrollEnabled);
+        
         for (int i = 0; i < getChildCount(); ++i) {
             View child = getChildAt(i);
             if (child instanceof ScrollContainer) {

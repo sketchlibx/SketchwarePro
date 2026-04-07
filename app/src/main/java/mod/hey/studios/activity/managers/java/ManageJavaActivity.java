@@ -2,6 +2,7 @@ package mod.hey.studios.activity.managers.java;
 
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.TypedValue;
@@ -46,6 +47,7 @@ import pro.sketchware.utility.FilePathUtil;
 import pro.sketchware.utility.FileResConfig;
 import pro.sketchware.utility.FileUtil;
 import pro.sketchware.utility.SketchwareUtil;
+import pro.sketchware.utility.ThemeUtils;
 
 public class ManageJavaActivity extends BaseAppCompatActivity {
 
@@ -329,7 +331,8 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
             FileUtil.writeFile(fpu.getManifestJava(sc_id), "");
         }
 
-        isTreeViewEnabled = ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW);
+        isTreeViewEnabled = ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW)
+                            && ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_JAVA_TREE_VIEW);
 
         if (isTreeViewEnabled) {
             if (rootNodes == null) {
@@ -430,18 +433,55 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
             holder.binding.title.setText(fileName);
 
             if (isTreeViewEnabled) {
-                int paddingPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 20, getResources().getDisplayMetrics());
-                holder.binding.getRoot().setPadding(paddingPx, 0, 0, 0);
-            } else {
+                int indentPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, node.depth * 24, getResources().getDisplayMetrics());
+                ViewGroup.MarginLayoutParams iconParams = (ViewGroup.MarginLayoutParams) holder.binding.icon.getLayoutParams();
+                iconParams.setMarginStart(indentPx);
+                holder.binding.icon.setLayoutParams(iconParams);
                 holder.binding.getRoot().setPadding(0, 0, 0, 0);
-            }
 
-            if (node.isFolder) {
-                holder.binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_mtrl_folder_code : R.drawable.ic_mtrl_folder);
-            } else if (fileName.endsWith(".java")) {
-                holder.binding.icon.setImageResource(R.drawable.ic_mtrl_java);
-            } else if (fileName.endsWith(".kt")) {
-                holder.binding.icon.setImageResource(R.drawable.ic_mtrl_kotlin);
+                int iconPadding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
+                holder.binding.title.setCompoundDrawablePadding(iconPadding);
+
+                if (node.isFolder) {
+                    holder.binding.title.setTypeface(null, Typeface.BOLD);
+                    
+                    // Folder Chevron logic
+                    holder.binding.icon.setVisibility(View.VISIBLE);
+                    holder.binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_mtrl_arrow_down : R.drawable.ic_mtrl_chevron_right_24);
+                    holder.binding.icon.setColorFilter(ThemeUtils.getColor(ManageJavaActivity.this, R.attr.colorOnSurfaceVariant)); 
+                    
+                    // Actual folder icon is placed in the TextView!
+                    holder.binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mtrl_folder, 0, 0, 0);
+                } else {
+                    holder.binding.title.setTypeface(null, Typeface.NORMAL);
+                    
+                    // Make chevron invisible for files to preserve alignment perfectly!
+                    holder.binding.icon.setVisibility(View.INVISIBLE);
+                    holder.binding.icon.clearColorFilter();
+                    
+                    // Actual file icon is placed in the TextView!
+                    int fileIcon = fileName.endsWith(".kt") ? R.drawable.ic_mtrl_kotlin : R.drawable.ic_mtrl_java;
+                    holder.binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(fileIcon, 0, 0, 0);
+                }
+            } else {
+                // 🔹 DEFAULT MANAGER VIEW
+                ViewGroup.MarginLayoutParams iconParams = (ViewGroup.MarginLayoutParams) holder.binding.icon.getLayoutParams();
+                iconParams.setMarginStart(0);
+                holder.binding.icon.setLayoutParams(iconParams);
+                holder.binding.getRoot().setPadding(0, 0, 0, 0);
+                
+                holder.binding.icon.setVisibility(View.VISIBLE);
+                holder.binding.icon.clearColorFilter();
+                holder.binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+                holder.binding.title.setTypeface(null, Typeface.NORMAL);
+
+                if (node.isFolder) {
+                    holder.binding.icon.setImageResource(R.drawable.ic_mtrl_folder);
+                } else if (fileName.endsWith(".kt")) {
+                    holder.binding.icon.setImageResource(R.drawable.ic_mtrl_kotlin);
+                } else {
+                    holder.binding.icon.setImageResource(R.drawable.ic_mtrl_java);
+                }
             }
 
             holder.binding.getRoot().setOnClickListener(view -> {

@@ -52,7 +52,6 @@ public class Gx {
         return className;
     }
 
-    // keeping this method, because it's used in a.a.a.eC
     public String a() {
         return className;
     }
@@ -191,7 +190,8 @@ public class Gx {
                 break;
 
             case "ConstraintLayout":
-                classInfos = "View.Clickable.ViewGroup.ConstraintLayout";
+            case "androidx.constraintlayout.widget.ConstraintLayout":
+                classInfos = "View.ViewGroup.ConstraintLayout";
                 break;
 
             case "ScrollView":
@@ -279,6 +279,7 @@ public class Gx {
                 break;
 
             case "MaterialButton":
+            case "com.google.android.material.button.MaterialButton":
                 classInfos = "View.Clickable.TextView.Button";
                 break;
 
@@ -291,10 +292,12 @@ public class Gx {
                 break;
 
             case "SwipeRefreshLayout":
+            case "androidx.swiperefreshlayout.widget.SwipeRefreshLayout":
                 classInfos = "View.ViewGroup.SwipeRefreshLayout";
                 break;
 
             case "TextInputLayout":
+            case "com.google.android.material.textfield.TextInputLayout":
                 classInfos = "View.ViewGroup.TextInputLayout";
                 break;
 
@@ -303,6 +306,8 @@ public class Gx {
                 break;
 
             case "CardView":
+            case "androidx.cardview.widget.CardView":
+            case "com.google.android.material.card.MaterialCardView":
                 classInfos = "View.Clickable.ViewGroup.FrameLayout.CardView";
                 break;
 
@@ -319,6 +324,7 @@ public class Gx {
                 break;
 
             case "RecyclerView":
+            case "androidx.recyclerview.widget.RecyclerView":
                 classInfos = "View.ViewGroup.RecyclerView";
                 break;
 

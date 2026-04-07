@@ -8,9 +8,15 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Pair;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.appcompat.content.res.AppCompatResources;
@@ -47,7 +53,9 @@ import a.a.a.Lx;
 import io.github.rosemoe.sora.langs.java.JavaLanguage;
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme;
 import io.github.rosemoe.sora.widget.CodeEditor;
+import io.github.rosemoe.sora.widget.EditorSearcher;
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion;
+import io.github.rosemoe.sora.widget.component.Magnifier;
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme;
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula;
 import io.github.rosemoe.sora.widget.schemes.SchemeEclipse;
@@ -83,6 +91,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
     private boolean fromAndroidManifest;
     private String scId;
     private String activityName;
+    private LinearLayout searchPanel;
 
     public static void loadCESettings(Context c, CodeEditor ed, String prefix) {
         loadCESettings(c, ed, prefix, false);
@@ -102,6 +111,9 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         ed.setWordwrap(word_wrap);
         ed.getProps().symbolPairAutoCompletion = auto_complete_symbol_pairs;
         ed.getComponent(EditorAutoCompletion.class).setEnabled(auto_c);
+        ed.getComponent(Magnifier.class).setEnabled(true);
+        ed.setHighlightCurrentLine(true);
+        ed.setLineSpacing(2f, 1.1f);
     }
 
     public static void selectTheme(CodeEditor ed, int which) {
@@ -192,7 +204,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
 
                     int indentBase = line.indexOf('<');
                     String baseIndent = " ".repeat(Math.max(0, indentBase));
-                    String attrIndent = baseIndent + "    "; // 4-space attribute indent
+                    String attrIndent = baseIndent + "    ";
 
                     boolean selfClosing = trimmed.endsWith("/>");
                     int tagEnd = trimmed.indexOf(' ');
@@ -281,10 +293,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         scId = getIntent().getStringExtra("sc_id");
         activityName = getIntent().getStringExtra("activity_name");
 
-        // PRO FEATURE: Setting custom developer font & comfortable line spacing
         binding.editor.setTypefaceText(EditorUtils.getTypeface(this));
-        binding.editor.setLineSpacing(2f, 1.1f);
-        binding.editor.setTextSize(16);
 
         if (fromAndroidManifest) {
             String filePath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + scId + "/Injection/androidmanifest/activities_components.json";
@@ -322,12 +331,99 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
 
         loadCESettings(this, binding.editor, "act", true);
         loadToolbar();
+        setupSearchPanel();
         
-        // Setup Toolbar Navigation
         binding.toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         UI.addSystemWindowInsetToPadding(binding.appBarLayout, true, true, true, false);
         UI.addSystemWindowInsetToMargin(binding.editor, true, false, true, true);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void setupSearchPanel() {
+        searchPanel = new LinearLayout(this);
+        searchPanel.setOrientation(LinearLayout.VERTICAL);
+        searchPanel.setBackgroundColor(ThemeUtils.getColor(this, R.attr.colorSurfaceVariant));
+        searchPanel.setVisibility(View.GONE);
+        
+        int iconColor = ThemeUtils.getColor(this, R.attr.colorOnSurfaceVariant);
+        
+        LinearLayout findRow = new LinearLayout(this);
+        findRow.setOrientation(LinearLayout.HORIZONTAL);
+        findRow.setPadding(16, 16, 16, 8);
+        
+        EditText findEdit = new EditText(this);
+        findEdit.setHint("Find...");
+        findEdit.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        
+        ImageView prevBtn = new ImageView(this);
+        prevBtn.setImageResource(R.drawable.ic_mtrl_arrow_up);
+        prevBtn.setColorFilter(iconColor);
+        prevBtn.setPadding(16, 16, 16, 16);
+        prevBtn.setOnClickListener(v -> binding.editor.getSearcher().gotoPrevious());
+        
+        ImageView nextBtn = new ImageView(this);
+        nextBtn.setImageResource(R.drawable.ic_mtrl_arrow_down);
+        nextBtn.setColorFilter(iconColor);
+        nextBtn.setPadding(16, 16, 16, 16);
+        nextBtn.setOnClickListener(v -> binding.editor.getSearcher().gotoNext());
+        
+        ImageView closeBtn = new ImageView(this);
+        closeBtn.setImageResource(R.drawable.ic_mtrl_close);
+        closeBtn.setColorFilter(iconColor);
+        closeBtn.setPadding(16, 16, 16, 16);
+        closeBtn.setOnClickListener(v -> {
+            binding.editor.getSearcher().stopSearch();
+            searchPanel.setVisibility(View.GONE);
+        });
+        
+        findRow.addView(findEdit);
+        findRow.addView(prevBtn);
+        findRow.addView(nextBtn);
+        findRow.addView(closeBtn);
+        
+        LinearLayout replaceRow = new LinearLayout(this);
+        replaceRow.setOrientation(LinearLayout.HORIZONTAL);
+        replaceRow.setPadding(16, 8, 16, 16);
+        
+        EditText replaceEdit = new EditText(this);
+        replaceEdit.setHint("Replace...");
+        replaceEdit.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        
+        ImageView replaceBtn = new ImageView(this);
+        replaceBtn.setImageResource(R.drawable.ic_mtrl_find_replace);
+        replaceBtn.setColorFilter(iconColor);
+        replaceBtn.setPadding(16, 16, 16, 16);
+        replaceBtn.setOnClickListener(v -> binding.editor.getSearcher().replaceThis(replaceEdit.getText().toString()));
+        
+        ImageView replaceAllBtn = new ImageView(this);
+        replaceAllBtn.setImageResource(R.drawable.ic_done_all_white_24dp);
+        replaceAllBtn.setColorFilter(iconColor);
+        replaceAllBtn.setPadding(16, 16, 16, 16);
+        replaceAllBtn.setOnClickListener(v -> binding.editor.getSearcher().replaceAll(replaceEdit.getText().toString()));
+        
+        replaceRow.addView(replaceEdit);
+        replaceRow.addView(replaceBtn);
+        replaceRow.addView(replaceAllBtn);
+        
+        searchPanel.addView(findRow);
+        searchPanel.addView(replaceRow);
+        
+        LinearLayout rootView = (LinearLayout) binding.editor.getParent();
+        rootView.addView(searchPanel, 1);
+        
+        findEdit.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                binding.editor.getSearcher().search(s.toString(), new EditorSearcher.SearchOptions(EditorSearcher.SearchOptions.TYPE_NORMAL, true));
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
     }
 
     public void save() {
@@ -370,7 +466,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
             super.onBackPressed();
         } else {
             MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(this);
-            dialog.setIcon(R.drawable.ic_warning_96dp);
+            dialog.setIcon(R.drawable.ic_mtrl_warning);
             dialog.setTitle(Helper.getResString(R.string.common_word_warning));
             dialog.setMessage(Helper.getResString(R.string.src_code_editor_unsaved_changes_dialog_warning_message));
 
@@ -472,8 +568,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
                     break;
 
                 case "Find & Replace":
-                    binding.editor.getSearcher().stopSearch();
-                    binding.editor.beginSearchMode();
+                    searchPanel.setVisibility(View.VISIBLE);
                     break;
 
                 case "Select theme":

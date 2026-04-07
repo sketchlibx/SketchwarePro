@@ -690,7 +690,9 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
         List<String> prioritizedSuggestions = new ArrayList<>();
 
         switch (typeView) {
-            case "0":  // LinearLayout
+            case "0":
+            case "1":
+            case "50":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "LinearLayout", "FrameLayout", "RelativeLayout",
                         "androidx.constraintlayout.widget.ConstraintLayout",
@@ -700,25 +702,25 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "2":  // HorizontalScrollView
-            case "12": // VerticalScrollView
+            case "2":
+            case "12":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "HorizontalScrollView", "VerticalScrollView", "ScrollView",
                         "androidx.core.widget.NestedScrollView"
                 ));
                 break;
 
-            case "9":  // ListView
-            case "25": // GridView
-            case "48": // RecyclerView
+            case "9":
+            case "25":
+            case "48":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "ListView", "GridView", "androidx.recyclerview.widget.RecyclerView",
                         "ExpandableListView", "androidx.viewpager2.widget.ViewPager2"
                 ));
                 break;
 
-            case "3":  // Button
-            case "41": // MaterialButton
+            case "3":
+            case "41":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "Button", "com.google.android.material.button.MaterialButton",
                         "ImageButton", "ToggleButton", "CompoundButton",
@@ -726,9 +728,9 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "4":  // TextView
-            case "5":  // EditText
-            case "38": // TextInputLayout
+            case "4":
+            case "5":
+            case "38":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "TextView", "EditText",
                         "com.google.android.material.textfield.TextInputLayout",
@@ -739,8 +741,8 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "21": // VideoView
-            case "7":  // WebView
+            case "21":
+            case "7":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "VideoView", "android.webkit.WebView",
                         "androidx.media.widget.VideoView",
@@ -748,8 +750,8 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "8":  // ProgressBar
-            case "14": // SeekBar
+            case "8":
+            case "14":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "ProgressBar", "SeekBar",
                         "HorizontalScrollBar", "VerticalSeekBar",
@@ -757,8 +759,8 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "11": // CheckBox
-            case "19": // RadioButton
+            case "11":
+            case "19":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "CheckBox", "RadioButton",
                         "androidx.appcompat.widget.AppCompatCheckBox",
@@ -766,8 +768,8 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "30": // TabLayout
-            case "31": // ViewPager
+            case "30":
+            case "31":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "com.google.android.material.tabs.TabLayout",
                         "androidx.viewpager.widget.ViewPager",
@@ -778,18 +780,18 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
                 ));
                 break;
 
-            case "32": // BottomNavigationView
+            case "32":
                 prioritizedSuggestions.add("com.google.android.material.bottomnavigation.BottomNavigationView");
                 break;
 
-            case "36": // CardView
+            case "36":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "androidx.cardview.widget.CardView",
                         "com.google.android.material.card.MaterialCardView"
                 ));
                 break;
 
-            case "39": // SwipeRefreshLayout
+            case "39":
                 prioritizedSuggestions.addAll(Arrays.asList(
                         "androidx.swiperefreshlayout.widget.SwipeRefreshLayout",
                         "com.google.android.material.progressindicator.CircularProgressIndicator",
@@ -815,7 +817,6 @@ public class PropertyInputItem extends RelativeLayout implements View.OnClickLis
     private List<String> populateAttributes() {
         List<String> attrs = new ArrayList<>();
         
-        // Universal Attributes
         attrs.add("android:elevation");
         attrs.add("android:visibility");
         attrs.add("android:alpha");

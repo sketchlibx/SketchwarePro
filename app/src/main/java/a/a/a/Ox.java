@@ -345,6 +345,8 @@ public class Ox {
             }
 
             writeLayoutMargin(widgetTag, viewBean);
+           
+            
             if (type == ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW) {
                 writeCardViewPadding(widgetTag, viewBean);
             } else {

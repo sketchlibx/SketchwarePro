@@ -29,7 +29,11 @@ import com.besome.sketch.beans.ProjectFileBean;
 import com.besome.sketch.beans.ProjectResourceBean;
 import com.besome.sketch.beans.ViewBean;
 import com.besome.sketch.beans.WidgetCollectionBean;
+import com.besome.sketch.editor.view.item.ItemCardView;
+import com.besome.sketch.editor.view.item.ItemConstraintLayout;
 import com.besome.sketch.editor.view.item.ItemHorizontalScrollView;
+import com.besome.sketch.editor.view.item.ItemLinearLayout;
+import com.besome.sketch.editor.view.item.ItemRelativeLayout;
 import com.besome.sketch.editor.view.item.ItemVerticalScrollView;
 import com.besome.sketch.editor.view.palette.IconAdView;
 import com.besome.sketch.editor.view.palette.IconBase;
@@ -251,7 +255,6 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
                 })
                 .start();
     }
-
 
     @Override
     public void onClick(View view) {
@@ -664,7 +667,8 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
                              ViewBeans.VIEW_TYPE_LAYOUT_COLLAPSINGTOOLBARLAYOUT,
                              ViewBeans.VIEW_TYPE_LAYOUT_TEXTINPUTLAYOUT,
                              ViewBeans.VIEW_TYPE_LAYOUT_SWIPEREFRESHLAYOUT,
-                             ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW -> isAppCompatViewUsed = true;
+                             ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW,
+                             ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT -> isAppCompatViewUsed = true;
                     }
                     if (isAppCompatViewUsed) {
                         break;
@@ -681,7 +685,7 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
             } else if (currentTouchedView instanceof IconMapView && !draggingListener.isGoogleMapEnabled()) {
                 bB.b(getContext(), getString(R.string.design_library_guide_setup_first), bB.TOAST_NORMAL).show();
                 return;
-            } else if (currentTouchedView instanceof AndroidxOrMaterialView && !isAppCompatEnabled) {
+            } else if ((currentTouchedView.getClass().getName().contains("AndroidxOrMaterialView") || (currentTouchedView instanceof IconBase && ((IconBase) currentTouchedView).getBean().type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT)) && !isAppCompatEnabled) {
                 bB.b(getContext(), getString(R.string.design_library_guide_setup_first), bB.TOAST_NORMAL).show();
                 return;
             }
@@ -706,7 +710,14 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
             }
         } else {
             currentTouchedView.setVisibility(View.GONE);
-            b(true, currentTouchedView instanceof IconCustomWidget);
+            if (currentTouchedView instanceof ItemLinearLayout || 
+                currentTouchedView instanceof ItemHorizontalScrollView || 
+                currentTouchedView instanceof ItemVerticalScrollView || 
+                currentTouchedView instanceof ItemCardView || 
+                currentTouchedView instanceof ItemRelativeLayout || 
+                currentTouchedView instanceof ItemConstraintLayout) {
+                b(true, currentTouchedView instanceof IconCustomWidget);
+            }
             viewPane.addRootLayout(((ItemView) currentTouchedView).getBean());
         }
         if (hitTestToPane(posInitX, posInitY)) {

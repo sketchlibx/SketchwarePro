@@ -57,6 +57,9 @@ public class ConfigActivity extends BaseAppCompatActivity {
     public static final String SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH = "blockDir";
     
     public static final String SETTING_TREE_VIEW = "enable-tree-view";
+    public static final String SETTING_JAVA_TREE_VIEW = "enable-java-tree-view"; 
+    public static final String SETTING_ASSETS_TREE_VIEW = "enable-assets-tree-view"; 
+    public static final String SETTING_RESOURCE_TREE_VIEW = "enable-resource-tree-view"; 
     public static final String SETTING_GIT_DIRECT_PUSH = "git-direct-push";
 
     public static String getBackupPath() {
@@ -140,6 +143,9 @@ public class ConfigActivity extends BaseAppCompatActivity {
                 SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH,
                 SETTING_BLOCKMANAGER_DIRECTORY_BLOCK_FILE_PATH,
                 SETTING_TREE_VIEW,
+                SETTING_JAVA_TREE_VIEW,
+                SETTING_ASSETS_TREE_VIEW,
+                SETTING_RESOURCE_TREE_VIEW,
                 SETTING_GIT_DIRECT_PUSH);
 
         for (String key : keys) {
@@ -153,7 +159,8 @@ public class ConfigActivity extends BaseAppCompatActivity {
             case SETTING_ALWAYS_SHOW_BLOCKS,
                  SETTING_ROOT_AUTO_INSTALL_PROJECTS, SETTING_SHOW_BUILT_IN_BLOCKS,
                  SETTING_SHOW_EVERY_SINGLE_BLOCK, SETTING_USE_NEW_VERSION_CONTROL,
-                 SETTING_USE_ASD_HIGHLIGHTER, SETTING_TREE_VIEW, SETTING_GIT_DIRECT_PUSH -> false;
+                 SETTING_USE_ASD_HIGHLIGHTER, SETTING_TREE_VIEW, SETTING_JAVA_TREE_VIEW, 
+                 SETTING_ASSETS_TREE_VIEW, SETTING_RESOURCE_TREE_VIEW, SETTING_GIT_DIRECT_PUSH -> false;
             case SETTING_BACKUP_DIRECTORY -> "/.sketchware/backups/";
             case SETTING_ROOT_AUTO_OPEN_AFTER_INSTALLING -> true;
             case SETTING_BLOCKMANAGER_DIRECTORY_PALETTE_FILE_PATH ->
@@ -223,13 +230,39 @@ public class ConfigActivity extends BaseAppCompatActivity {
             treeViewPref.setTitle("Tree View File Manager");
             treeViewPref.setSummary("Display project source files in a hierarchical tree structure instead of a flat list.");
             treeViewPref.setDefaultValue(false);
+            treeViewPref.setIconSpaceReserved(false);
             getPreferenceScreen().addPreference(treeViewPref);
+
+            SwitchPreferenceCompat javaTreePref = new SwitchPreferenceCompat(requireContext());
+            javaTreePref.setKey(SETTING_JAVA_TREE_VIEW);
+            javaTreePref.setTitle("Java Files Tree View");
+            javaTreePref.setSummary("Use Tree View specifically for Java/Kotlin source files.");
+            javaTreePref.setDefaultValue(false);
+            javaTreePref.setIconSpaceReserved(false);
+            getPreferenceScreen().addPreference(javaTreePref);
+
+            SwitchPreferenceCompat assetsTreePref = new SwitchPreferenceCompat(requireContext());
+            assetsTreePref.setKey(SETTING_ASSETS_TREE_VIEW);
+            assetsTreePref.setTitle("Assets Files Tree View");
+            assetsTreePref.setSummary("Use Tree View specifically for project asset files.");
+            assetsTreePref.setDefaultValue(false);
+            assetsTreePref.setIconSpaceReserved(false);
+            getPreferenceScreen().addPreference(assetsTreePref);
+
+            SwitchPreferenceCompat resourceTreePref = new SwitchPreferenceCompat(requireContext());
+            resourceTreePref.setKey(SETTING_RESOURCE_TREE_VIEW);
+            resourceTreePref.setTitle("Resource Files Tree View");
+            resourceTreePref.setSummary("Use Tree View specifically for project resource files.");
+            resourceTreePref.setDefaultValue(false);
+            resourceTreePref.setIconSpaceReserved(false);
+            getPreferenceScreen().addPreference(resourceTreePref);
 
             SwitchPreferenceCompat gitDirectPushPref = new SwitchPreferenceCompat(requireContext());
             gitDirectPushPref.setKey(SETTING_GIT_DIRECT_PUSH);
             gitDirectPushPref.setTitle("Git: Direct Commit & Push");
             gitDirectPushPref.setSummary("Show a 'Commit & Push' button in the Git Client to perform both actions in one click.");
             gitDirectPushPref.setDefaultValue(false);
+            gitDirectPushPref.setIconSpaceReserved(false);
             getPreferenceScreen().addPreference(gitDirectPushPref);
 
             Preference backupDir = findPreference("backup-dir");

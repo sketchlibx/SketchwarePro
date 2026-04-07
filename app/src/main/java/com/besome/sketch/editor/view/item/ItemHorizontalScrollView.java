@@ -219,6 +219,8 @@ public class ItemHorizontalScrollView extends FrameLayout implements ItemView, S
 
     @Override
     public void setChildScrollEnabled(boolean scrollEnabled) {
+    this.setScrollEnabled(scrollEnabled);
+            
         for (int i = 0; i < getChildCount(); i++) {
             KeyEvent.Callback firstChild = getChildAt(i);
             if (firstChild instanceof ScrollContainer) {

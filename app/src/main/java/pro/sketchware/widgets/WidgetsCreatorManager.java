@@ -61,7 +61,7 @@ public class WidgetsCreatorManager {
     private final List<String> availableWidgetsNames = Arrays.asList(
             "BottomNavigationView", "Button", "CardView", "CheckBox", "CodeView", "EditText", "GridView",
             "HScrollView", "ImageView", "LinearLayout", "ListView", "MapView", "MaterialButton", "ProgressBar",
-            "RadioButton", "RecyclerView", "RelativeLayout", "ScrollView", "SeekBar", "Spinner", "Switch",
+            "RadioButton", "RecyclerView", "RelativeLayout", "ConstraintLayout", "ScrollView", "SeekBar", "Spinner", "Switch",
             "SwipeRefreshLayout", "TabLayout", "TextInputLayout", "TextView", "VideoView", "ViewPager", "WebView"
     );
     private final List<String> availableWidgetsTypes = new ArrayList<>();

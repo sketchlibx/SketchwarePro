@@ -24,13 +24,13 @@ public class IconConstraintLayout extends IconBase {
         viewBean.type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
         LayoutBean layoutBean = viewBean.layout;
         layoutBean.width = -1;
+        layoutBean.height = -1;
         layoutBean.paddingLeft = 8;
         layoutBean.paddingTop = 8;
         layoutBean.paddingRight = 8;
         layoutBean.paddingBottom = 8;
-        viewBean.isCustomWidget = true;
-        viewBean.customView = "androidx.constraintlayout.widget.ConstraintLayout";
         viewBean.convert = "androidx.constraintlayout.widget.ConstraintLayout";
+        viewBean.isCustomWidget = false;
         return viewBean;
     }
 }
