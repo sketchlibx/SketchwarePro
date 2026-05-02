@@ -346,7 +346,6 @@ public class Ox {
 
             writeLayoutMargin(widgetTag, viewBean);
            
-            
             if (type == ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW) {
                 writeCardViewPadding(widgetTag, viewBean);
             } else {
@@ -354,7 +353,7 @@ public class Ox {
             }
             writeBackgroundResource(widgetTag, viewBean);
             
-            if (viewBean.getClassInfo().a("ViewGroup")) {
+            if (viewBean.getClassInfo().a("ViewGroup") || type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
                 writeViewGravity(widgetTag, viewBean);
             }
         }
@@ -424,7 +423,7 @@ public class Ox {
             }
         }
 
-        if (viewBean.getClassInfo().a("ViewGroup")) {
+        if (viewBean.getClassInfo().a("ViewGroup") || viewBean.type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT) {
             for (ViewBean bean : views) {
                 if (bean.parent != null && bean.parent.equals(viewBean.id)) {
                     writeWidget(widgetTag, bean);
@@ -436,11 +435,13 @@ public class Ox {
             widgetTag.addAttributeValue(viewBean.inject.replaceAll(" ", ""));
         }
 
-        if (!viewBean.parentAttributes.isEmpty()) {
-            viewBean.parentAttributes.forEach((key, value) -> {
+        if (viewBean.parentAttributes != null && !viewBean.parentAttributes.isEmpty()) {
+            for (Map.Entry<String, String> entry : viewBean.parentAttributes.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
                 String[] parts = key.split(":");
                 widgetTag.addAttribute(parts[0], parts[1], RELATIVE_IDS.contains(key) ? "@id/" + value : value);
-            });
+            }
         }
 
         if (widgetTag.c().equals("CollapsingToolbarLayout")

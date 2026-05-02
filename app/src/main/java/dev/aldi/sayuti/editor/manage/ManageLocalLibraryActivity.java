@@ -8,12 +8,12 @@ import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.getLocalLibraries
 import static dev.aldi.sayuti.editor.manage.LocalLibrariesUtil.rewriteLocalLibFile;
 
 import android.os.Bundle;
-import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.PopupMenu;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -179,35 +179,16 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
                         collapseContextualToolbar();
                     });
                 });
-
                 return true;
             }
             return false;
         });
 
-        binding.downloadLibraryButton.setOnClickListener(v -> {
-            if (getSupportFragmentManager().findFragmentByTag("library_downloader_dialog") != null) {
-                return;
-            }
-
-            Bundle bundle = new Bundle();
-            bundle.putBoolean("notAssociatedWithProject", notAssociatedWithProject);
-            bundle.putSerializable("buildSettings", buildSettings);
-            bundle.putString("localLibFile", getLocalLibFile(scId).getAbsolutePath());
-
-            LibraryDownloaderDialogFragment fragment = new LibraryDownloaderDialogFragment();
-            fragment.setArguments(bundle);
-            fragment.setOnLibraryDownloadedTask(() -> {
-                LocalLibrariesUtil.clearCache(); // Force refresh from disk when new lib is downloaded
-                runLoadLocalLibrariesTask();
-            });
-            fragment.show(getSupportFragmentManager(), "library_downloader_dialog");
-        });
+        binding.downloadLibraryButton.setOnClickListener(v -> openDownloaderDialog(null, false));
 
         binding.searchView.getEditText().addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void afterTextChanged(Editable s) {
@@ -216,8 +197,7 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
             }
 
             @Override
-            public void onTextChanged(CharSequence newText, int start, int before, int count) {
-            }
+            public void onTextChanged(CharSequence newText, int start, int before, int count) {}
         });
 
         runLoadLocalLibrariesTask();
@@ -234,6 +214,30 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
                 }
             }
         });
+    }
+
+    public void openDownloaderDialog(@Nullable String predefinedDependencyUrl, boolean isUpgrade) {
+        if (getSupportFragmentManager().findFragmentByTag("library_downloader_dialog") != null) {
+            return;
+        }
+
+        Bundle bundle = new Bundle();
+        bundle.putBoolean("notAssociatedWithProject", notAssociatedWithProject);
+        bundle.putSerializable("buildSettings", buildSettings);
+        bundle.putString("localLibFile", getLocalLibFile(scId).getAbsolutePath());
+        
+        if (predefinedDependencyUrl != null && !predefinedDependencyUrl.isEmpty()) {
+            bundle.putString("prefillDependency", predefinedDependencyUrl);
+            bundle.putBoolean("isUpgradeMode", isUpgrade);
+        }
+
+        LibraryDownloaderDialogFragment fragment = new LibraryDownloaderDialogFragment();
+        fragment.setArguments(bundle);
+        fragment.setOnLibraryDownloadedTask(() -> {
+            LocalLibrariesUtil.clearCache(); // Force refresh from disk when new lib is downloaded
+            runLoadLocalLibrariesTask();
+        });
+        fragment.show(getSupportFragmentManager(), "library_downloader_dialog");
     }
 
     private void runLoadLocalLibrariesTask() {
@@ -279,11 +283,19 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
         return count;
     }
 
-    // This method is running from the background thread.
     private void loadLibraries() {
         var localLibraries = getAllLocalLibraries();
         if (!notAssociatedWithProject) {
             projectUsedLibs = getLocalLibraries(scId);
+            
+            for (LocalLibrary lib : localLibraries) {
+                for (Map<String, Object> map : projectUsedLibs) {
+                    if (lib.getName().equals(map.get("name").toString()) && map.containsKey("dependency")) {
+                        lib.setMavenDependency((String) map.get("dependency"));
+                        break;
+                    }
+                }
+            }
         }
 
         localLibraries.sort((lib1, lib2) -> {
@@ -374,6 +386,23 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
             binding.card.setOnLongClickListener(v -> {
                 if (isSelectionModeEnabled) {
                     return false;
+                }
+                
+                if (library.getMavenDependency() != null && !library.getMavenDependency().isEmpty()) {
+                    PopupMenu pm = new PopupMenu(ManageLocalLibraryActivity.this, v);
+                    pm.getMenu().add("Change Version (Upgrade/Downgrade)");
+                    pm.getMenu().add("Select for Deletion");
+                    pm.setOnMenuItemClickListener(item -> {
+                        if (item.getTitle().toString().contains("Version")) {
+                            openDownloaderDialog(library.getMavenDependency(), true);
+                        } else {
+                            isSelectionModeEnabled = true;
+                            toggleLocalLibrary(binding.card, library, onLocalLibrarySelectedStateChangedListener);
+                        }
+                        return true;
+                    });
+                    pm.show();
+                    return true;
                 }
 
                 isSelectionModeEnabled = true;
@@ -468,7 +497,7 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
             notifyDataSetChanged();
         }
 
-        public static class ViewHolder extends RecyclerView.ViewHolder {
+        public class ViewHolder extends RecyclerView.ViewHolder {
             private final ViewItemLocalLibBinding binding;
 
             public ViewHolder(@NonNull ViewItemLocalLibBinding binding) {
@@ -570,7 +599,7 @@ public class ManageLocalLibraryActivity extends BaseAppCompatActivity {
             notifyDataSetChanged();
         }
 
-        public static class ViewHolder extends RecyclerView.ViewHolder {
+        public class ViewHolder extends RecyclerView.ViewHolder {
             private final ViewItemLocalLibSearchBinding binding;
 
             public ViewHolder(@NonNull ViewItemLocalLibSearchBinding binding) {

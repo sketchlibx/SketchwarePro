@@ -33,7 +33,6 @@ public class DexCompiler {
         if (builder.proguard.isShrinkingEnabled()) {
             programFiles.add(Paths.get(builder.yq.proguardClassesPath));
         } else {
-            // By packaging the classes into a JAR first (just like Proguard does), D8 parses them perfectly without dropping any app class!
             File compiledClassesDir = new File(builder.yq.compiledClassesPath);
             if (compiledClassesDir.exists() && compiledClassesDir.list() != null && compiledClassesDir.list().length > 0) {
                 try {
@@ -63,14 +62,21 @@ public class DexCompiler {
             libraryFiles.add(Paths.get(jarPath));
         }
 
-        D8.run(D8Command.builder()
+        // MultiDex generation support
+        // D8 requires OutputMode.DexIndexed without a main dex list to automatically generate classesX.dex
+        D8Command.Builder commandBuilder = D8Command.builder()
                 .setMode(CompilationMode.RELEASE)
                 .setIntermediate(false)
                 .setMinApiLevel(minApiLevel)
                 .setDisableDesugaring(false) // Always keep desugaring ENABLED (setDisable=false) for backwards compatibility
                 .addLibraryFiles(libraryFiles)
                 .setOutput(new File(builder.yq.binDirectoryPath, "dex").toPath(), OutputMode.DexIndexed)
-                .addProgramFiles(programFiles)
-                .build());
+                .addProgramFiles(programFiles);
+
+        if (builder.isMultiDexEnabled()) {
+            LogUtil.d("DexCompiler", "MultiDex is enabled for D8 compilation");
+        }
+
+        D8.run(commandBuilder.build());
     }
 }

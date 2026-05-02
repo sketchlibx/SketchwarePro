@@ -549,9 +549,12 @@ public class MyProjectSettingActivity extends BaseAppCompatActivity implements V
                 updateProjectResourcesContents(data);
                 wq.a(getApplicationContext(), sc_id);
                 new oB().b(wq.b(sc_id));
+                
                 ProjectSettings projectSettings = new ProjectSettings(sc_id);
                 projectSettings.setValue(ProjectSettings.SETTING_NEW_XML_COMMAND, ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
                 projectSettings.setValue(ProjectSettings.SETTING_ENABLE_VIEWBINDING, ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
+                projectSettings.setValue(ProjectSettings.SETTING_FORCE_ANDROIDX, ProjectSettings.SETTING_GENERIC_VALUE_TRUE);
+                projectSettings.setValue("multidex", "true");
 
             }
             try {

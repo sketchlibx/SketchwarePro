@@ -667,8 +667,7 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
                              ViewBeans.VIEW_TYPE_LAYOUT_COLLAPSINGTOOLBARLAYOUT,
                              ViewBeans.VIEW_TYPE_LAYOUT_TEXTINPUTLAYOUT,
                              ViewBeans.VIEW_TYPE_LAYOUT_SWIPEREFRESHLAYOUT,
-                             ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW,
-                             ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT -> isAppCompatViewUsed = true;
+                             ViewBeans.VIEW_TYPE_LAYOUT_CARDVIEW -> isAppCompatViewUsed = true;
                     }
                     if (isAppCompatViewUsed) {
                         break;
@@ -1056,9 +1055,15 @@ public class ViewEditor extends RelativeLayout implements View.OnClickListener, 
             selectedItem.setSelection(false);
         }
         selectedItem = syVar;
-        selectedItem.setSelection(true);
-        if (widgetSelectedListener != null) {
-            widgetSelectedListener.a(z, selectedItem.getBean().id);
+        if (selectedItem != null) {
+            selectedItem.setSelection(true);
+            if (widgetSelectedListener != null) {
+                widgetSelectedListener.a(z, selectedItem.getBean().id);
+            }
+        } else {
+            if (widgetSelectedListener != null) {
+                widgetSelectedListener.a(false, "");
+            }
         }
     }
 

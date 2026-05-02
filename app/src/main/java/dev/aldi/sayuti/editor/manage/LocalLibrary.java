@@ -9,6 +9,7 @@ public class LocalLibrary {
     private final String name;
     private final String size;
     private boolean isSelected;
+    private String mavenDependency = null;
 
     private LocalLibrary(String name, String size) {
         this.name = name;
@@ -33,5 +34,13 @@ public class LocalLibrary {
 
     public void setSelected(boolean isSelected) {
         this.isSelected = isSelected;
+    }
+
+    public String getMavenDependency() {
+        return mavenDependency;
+    }
+
+    public void setMavenDependency(String dependencyUrl) {
+        this.mavenDependency = dependencyUrl;
     }
 }

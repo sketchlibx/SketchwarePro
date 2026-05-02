@@ -7,6 +7,7 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,6 +59,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
     private FileResConfig frc;
     private String numProj;
     private String temp;
+    private String importTargetPath;
 
     private ManageFileBinding binding;
 
@@ -111,6 +113,16 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         refresh();
     }
 
+    private void sortTreePaths(ArrayList<String> paths) {
+        paths.sort((p1, p2) -> {
+            boolean isDir1 = new File(p1).isDirectory();
+            boolean isDir2 = new File(p2).isDirectory();
+            if (isDir1 && !isDir2) return -1;
+            if (!isDir1 && isDir2) return 1;
+            return String.CASE_INSENSITIVE_ORDER.compare(new File(p1).getName(), new File(p2).getName());
+        });
+    }
+
     private void refresh() {
         isTreeViewEnabled = ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_TREE_VIEW)
                 && ConfigActivity.isSettingEnabled(ConfigActivity.SETTING_RESOURCE_TREE_VIEW);
@@ -119,7 +131,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
             if (rootNodes == null) {
                 rootNodes = new ArrayList<>();
                 ArrayList<String> paths = frc.getResourceFile(fpu.getPathResource(numProj));
-                Collections.sort(paths, String.CASE_INSENSITIVE_ORDER);
+                sortTreePaths(paths);
                 for (String p : paths) {
                     rootNodes.add(new FileNode(p, 0));
                 }
@@ -128,7 +140,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
             handleFab();
         } else {
             ArrayList<String> resourceFile = frc.getResourceFile(temp);
-            Collections.sort(resourceFile, String.CASE_INSENSITIVE_ORDER);
+            sortTreePaths(resourceFile);
             
             flatNodesList.clear();
             for (String p : resourceFile) {
@@ -165,7 +177,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
             if (node.children == null) {
                 node.children = new ArrayList<>();
                 ArrayList<String> paths = frc.getResourceFile(node.path);
-                Collections.sort(paths, String.CASE_INSENSITIVE_ORDER);
+                sortTreePaths(paths);
                 for (String p : paths) {
                     node.children.add(new FileNode(p, node.depth + 1));
                 }
@@ -212,17 +224,18 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         binding.topAppBar.setNavigationOnClickListener(v -> onBackPressed());
         binding.showOptionsButton.setOnClickListener(view -> {
             if (isInMainDirectory() || isTreeViewEnabled) {
-                createNewDialog(true);
+                createNewDialog(true, isTreeViewEnabled ? fpu.getPathResource(numProj) : temp);
                 return;
             }
             hideShowOptionsButton(false);
         });
         binding.closeButton.setOnClickListener(view -> hideShowOptionsButton(true));
         binding.createNewButton.setOnClickListener(v -> {
-            createNewDialog(isInMainDirectory() || isTreeViewEnabled);
+            createNewDialog(false, isTreeViewEnabled ? fpu.getPathResource(numProj) : temp);
             hideShowOptionsButton(true);
         });
         binding.importNewButton.setOnClickListener(v -> {
+            importTargetPath = isTreeViewEnabled ? fpu.getPathResource(numProj) : temp;
             dialog.show(getSupportFragmentManager(), "filePicker");
             hideShowOptionsButton(true);
         });
@@ -269,7 +282,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
         }
     }
 
-    private void createNewDialog(boolean isFolder) {
+    private void createNewDialog(boolean isFolder, String targetPath) {
         DialogCreateNewFileLayoutBinding dialogBinding = DialogCreateNewFileLayoutBinding.inflate(getLayoutInflater());
         var inputText = dialogBinding.inputText;
 
@@ -295,12 +308,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 }
 
                 String name = Helper.getText(inputText);
-                String path;
-                if (isFolder) {
-                    path = fpu.getPathResource(numProj) + "/" + name;
-                } else {
-                    path = new File(temp + File.separator + name).getAbsolutePath();
-                }
+                String path = new File(targetPath, name).getAbsolutePath();
 
                 if (FileUtil.isExistFile(path)) {
                     SketchwareUtil.toastError("File exists already");
@@ -345,7 +353,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 }
                 for (File file : files) {
                     try {
-                        FileUtil.copyDirectory(file, new File(temp + File.separator + file.getName()));
+                        FileUtil.copyDirectory(file, new File(importTargetPath + File.separator + file.getName()));
                     } catch (IOException e) {
                         SketchwareUtil.toastError("Couldn't import resource! [" + e.getMessage() + "]");
                     }
@@ -465,7 +473,7 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 int iconPadding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
                 binding.title.setCompoundDrawablePadding(iconPadding);
 
-                binding.more.setVisibility(View.VISIBLE);
+                binding.more.setVisibility(View.GONE);
 
                 if (node.isFolder) {
                     binding.title.setTypeface(null, Typeface.BOLD);
@@ -560,16 +568,20 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
             });
 
             binding.getRoot().setOnLongClickListener(v -> {
-                if (node.isFolder) {
-                    PopupMenu popupMenu = new PopupMenu(ManageResourceActivity.this, binding.more);
-                    popupMenu.getMenu().add("Delete");
-                    popupMenu.setOnMenuItemClickListener(item -> {
-                        showDeleteDialog(path);
-                        return true;
-                    });
-                    popupMenu.show();
+                if (isTreeViewEnabled) {
+                    showTreeContextMenu(v, path, node);
                 } else {
-                    binding.more.performClick();
+                    if (node.isFolder) {
+                        PopupMenu popupMenu = new PopupMenu(ManageResourceActivity.this, binding.more);
+                        popupMenu.getMenu().add("Delete");
+                        popupMenu.setOnMenuItemClickListener(item -> {
+                            showDeleteDialog(path);
+                            return true;
+                        });
+                        popupMenu.show();
+                    } else {
+                        binding.more.performClick();
+                    }
                 }
                 return true;
             });
@@ -587,6 +599,46 @@ public class ManageResourceActivity extends BaseAppCompatActivity {
                 }
                 goEdit(path);
             });
+        }
+        
+        private void showTreeContextMenu(View v, String path, FileNode node) {
+            PopupMenu popupMenu = new PopupMenu(ManageResourceActivity.this, v, Gravity.CENTER);
+            if (node.isFolder) {
+                popupMenu.getMenu().add(0, 3, 0, "Create file inside");
+                popupMenu.getMenu().add(0, 4, 0, "Create folder inside");
+                popupMenu.getMenu().add(0, 5, 0, "Import here");
+            } else {
+                popupMenu.getMenu().add(0, 0, 0, "Edit");
+                popupMenu.getMenu().add(0, 6, 0, "Edit with...");
+            }
+            popupMenu.getMenu().add(0, 1, 0, "Rename");
+            popupMenu.getMenu().add(0, 2, 0, "Delete");
+
+            popupMenu.setOnMenuItemClickListener(itemMenu -> {
+                switch (itemMenu.getItemId()) {
+                    case 0 -> goEdit2(path);
+                    case 1 -> showRenameDialog(path);
+                    case 2 -> showDeleteDialog(path);
+                    case 3 -> createNewDialog(false, node.path);
+                    case 4 -> createNewDialog(true, node.path);
+                    case 5 -> {
+                        importTargetPath = node.path;
+                        dialog.show(getSupportFragmentManager(), "filePicker");
+                    }
+                    case 6 -> {
+                        if (path.endsWith("xml")) {
+                            Intent intent = new Intent(Intent.ACTION_VIEW);
+                            intent.setDataAndType(Uri.fromFile(new File(path)), "text/plain");
+                            startActivity(intent);
+                        } else {
+                            SketchwareUtil.toast("Only XML files can be edited");
+                        }
+                    }
+                    default -> { return false; }
+                }
+                return true;
+            });
+            popupMenu.show();
         }
 
         public String getItem(int position) {

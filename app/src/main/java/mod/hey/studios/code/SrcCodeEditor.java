@@ -92,6 +92,12 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
     private String scId;
     private String activityName;
     private LinearLayout searchPanel;
+    private ImageView prevBtn;
+    private ImageView nextBtn;
+    private ImageView replaceBtn;
+    private ImageView replaceAllBtn;
+    private EditText findEdit;
+    private EditText replaceEdit;
 
     public static void loadCESettings(Context c, CodeEditor ed, String prefix) {
         loadCESettings(c, ed, prefix, false);
@@ -241,12 +247,6 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         }
     }
 
-    public static void a(StringBuilder code, int tabAmount) {
-        for (int i = 0; i < tabAmount; ++i) {
-            code.append('\t');
-        }
-    }
-
     public static void showSwitchThemeDialog(Activity activity, CodeEditor codeEditor, DialogInterface.OnClickListener listener) {
         EditorColorScheme currentScheme = codeEditor.getColorScheme();
         var knownColorSchemesProperlyOrdered = new ArrayList<>(KNOWN_COLOR_SCHEMES);
@@ -306,30 +306,34 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
                     }
                 }
             }
+        } else {
+            beforeContent = FileUtil.readFile(getIntent().getStringExtra("content"));
         }
 
-        if (!fromAndroidManifest)
-            beforeContent = FileUtil.readFile(getIntent().getStringExtra("content"));
         binding.editor.setText(beforeContent);
 
-        if (title.endsWith(".java")) {
-            binding.editor.setEditorLanguage(new JavaLanguage());
-            languageId = 0;
-        } else if (title.endsWith(".kt")) {
-            binding.editor.setEditorLanguage(CodeEditorLanguages.loadTextMateLanguage(CodeEditorLanguages.SCOPE_NAME_KOTLIN));
-            binding.editor.setColorScheme(CodeEditorColorSchemes.loadTextMateColorScheme(CodeEditorColorSchemes.THEME_DRACULA));
-            languageId = 1;
-        } else if (title.endsWith(".xml")) {
-            binding.editor.setEditorLanguage(CodeEditorLanguages.loadTextMateLanguage(CodeEditorLanguages.SCOPE_NAME_XML));
-            if (ThemeUtils.isDarkThemeEnabled(getApplicationContext())) {
+        if (title != null) {
+            if (title.endsWith(".java")) {
+                binding.editor.setEditorLanguage(new JavaLanguage());
+                languageId = 0;
+            } else if (title.endsWith(".kt")) {
+                binding.editor.setEditorLanguage(CodeEditorLanguages.loadTextMateLanguage(CodeEditorLanguages.SCOPE_NAME_KOTLIN));
                 binding.editor.setColorScheme(CodeEditorColorSchemes.loadTextMateColorScheme(CodeEditorColorSchemes.THEME_DRACULA));
+                languageId = 1;
+            } else if (title.endsWith(".xml")) {
+                binding.editor.setEditorLanguage(CodeEditorLanguages.loadTextMateLanguage(CodeEditorLanguages.SCOPE_NAME_XML));
+                if (ThemeUtils.isDarkThemeEnabled(getApplicationContext())) {
+                    binding.editor.setColorScheme(CodeEditorColorSchemes.loadTextMateColorScheme(CodeEditorColorSchemes.THEME_DRACULA));
+                } else {
+                    binding.editor.setColorScheme(CodeEditorColorSchemes.loadTextMateColorScheme(CodeEditorColorSchemes.THEME_GITHUB));
+                }
+                languageId = 2;
             } else {
-                binding.editor.setColorScheme(CodeEditorColorSchemes.loadTextMateColorScheme(CodeEditorColorSchemes.THEME_GITHUB));
+                EditorUtils.loadXmlConfig(binding.editor);
             }
-            languageId = 2;
         }
 
-        loadCESettings(this, binding.editor, "act", true);
+        loadCESettings(this, binding.editor, "act", languageId == 0);
         loadToolbar();
         setupSearchPanel();
         
@@ -352,29 +356,38 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         findRow.setOrientation(LinearLayout.HORIZONTAL);
         findRow.setPadding(16, 16, 16, 8);
         
-        EditText findEdit = new EditText(this);
+        findEdit = new EditText(this);
         findEdit.setHint("Find...");
         findEdit.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         
-        ImageView prevBtn = new ImageView(this);
+        prevBtn = new ImageView(this);
         prevBtn.setImageResource(R.drawable.ic_mtrl_arrow_up);
         prevBtn.setColorFilter(iconColor);
         prevBtn.setPadding(16, 16, 16, 16);
-        prevBtn.setOnClickListener(v -> binding.editor.getSearcher().gotoPrevious());
+        prevBtn.setOnClickListener(v -> {
+            if (findEdit.getText().length() > 0) {
+                try { binding.editor.getSearcher().gotoPrevious(); } catch (Exception ignored) {}
+            }
+        });
         
-        ImageView nextBtn = new ImageView(this);
+        nextBtn = new ImageView(this);
         nextBtn.setImageResource(R.drawable.ic_mtrl_arrow_down);
         nextBtn.setColorFilter(iconColor);
         nextBtn.setPadding(16, 16, 16, 16);
-        nextBtn.setOnClickListener(v -> binding.editor.getSearcher().gotoNext());
+        nextBtn.setOnClickListener(v -> {
+            if (findEdit.getText().length() > 0) {
+                try { binding.editor.getSearcher().gotoNext(); } catch (Exception ignored) {}
+            }
+        });
         
         ImageView closeBtn = new ImageView(this);
         closeBtn.setImageResource(R.drawable.ic_mtrl_close);
         closeBtn.setColorFilter(iconColor);
         closeBtn.setPadding(16, 16, 16, 16);
         closeBtn.setOnClickListener(v -> {
-            binding.editor.getSearcher().stopSearch();
+            try { binding.editor.getSearcher().stopSearch(); } catch (Exception ignored) {}
             searchPanel.setVisibility(View.GONE);
+            findEdit.setText("");
         });
         
         findRow.addView(findEdit);
@@ -386,21 +399,29 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         replaceRow.setOrientation(LinearLayout.HORIZONTAL);
         replaceRow.setPadding(16, 8, 16, 16);
         
-        EditText replaceEdit = new EditText(this);
+        replaceEdit = new EditText(this);
         replaceEdit.setHint("Replace...");
         replaceEdit.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         
-        ImageView replaceBtn = new ImageView(this);
+        replaceBtn = new ImageView(this);
         replaceBtn.setImageResource(R.drawable.ic_mtrl_find_replace);
         replaceBtn.setColorFilter(iconColor);
         replaceBtn.setPadding(16, 16, 16, 16);
-        replaceBtn.setOnClickListener(v -> binding.editor.getSearcher().replaceThis(replaceEdit.getText().toString()));
+        replaceBtn.setOnClickListener(v -> {
+            if (findEdit.getText().length() > 0) {
+                try { binding.editor.getSearcher().replaceThis(replaceEdit.getText().toString()); } catch (Exception ignored) {}
+            }
+        });
         
-        ImageView replaceAllBtn = new ImageView(this);
+        replaceAllBtn = new ImageView(this);
         replaceAllBtn.setImageResource(R.drawable.ic_done_all_white_24dp);
         replaceAllBtn.setColorFilter(iconColor);
         replaceAllBtn.setPadding(16, 16, 16, 16);
-        replaceAllBtn.setOnClickListener(v -> binding.editor.getSearcher().replaceAll(replaceEdit.getText().toString()));
+        replaceAllBtn.setOnClickListener(v -> {
+            if (findEdit.getText().length() > 0) {
+                try { binding.editor.getSearcher().replaceAll(replaceEdit.getText().toString()); } catch (Exception ignored) {}
+            }
+        });
         
         replaceRow.addView(replaceEdit);
         replaceRow.addView(replaceBtn);
@@ -412,18 +433,43 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
         LinearLayout rootView = (LinearLayout) binding.editor.getParent();
         rootView.addView(searchPanel, 1);
         
+        updateSearchButtonsState(false);
+        
         findEdit.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                binding.editor.getSearcher().search(s.toString(), new EditorSearcher.SearchOptions(EditorSearcher.SearchOptions.TYPE_NORMAL, true));
+                boolean hasText = s != null && s.length() > 0;
+                updateSearchButtonsState(hasText);
+                
+                if (hasText) {
+                    try {
+                        binding.editor.getSearcher().search(s.toString(), 
+                            new EditorSearcher.SearchOptions(EditorSearcher.SearchOptions.TYPE_NORMAL, true));
+                    } catch (Exception ignored) {}
+                } else {
+                    try { binding.editor.getSearcher().stopSearch(); } catch (Exception ignored) {}
+                }
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
         });
+    }
+
+    private void updateSearchButtonsState(boolean enabled) {
+        float alpha = enabled ? 1.0f : 0.4f;
+        prevBtn.setAlpha(alpha);
+        nextBtn.setAlpha(alpha);
+        replaceBtn.setAlpha(alpha);
+        replaceAllBtn.setAlpha(alpha);
+        
+        prevBtn.setEnabled(enabled);
+        nextBtn.setEnabled(enabled);
+        replaceBtn.setEnabled(enabled);
+        replaceAllBtn.setEnabled(enabled);
     }
 
     public void save() {
@@ -462,6 +508,13 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        if (searchPanel != null && searchPanel.getVisibility() == View.VISIBLE) {
+            try { binding.editor.getSearcher().stopSearch(); } catch (Exception ignored) {}
+            searchPanel.setVisibility(View.GONE);
+            findEdit.setText("");
+            return;
+        }
+
         if (beforeContent.equals(binding.editor.getText().toString())) {
             super.onBackPressed();
         } else {
@@ -520,7 +573,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
                     break;
 
                 case "Pretty print":
-                    if (getIntent().hasExtra("java")) {
+                    if (getIntent().hasExtra("java") || (title != null && title.endsWith(".java"))) {
                         StringBuilder b = new StringBuilder();
 
                         for (String line : binding.editor.getText().toString().split("\n")) {
@@ -546,7 +599,7 @@ public class SrcCodeEditor extends BaseAppCompatActivity {
                             SketchwareUtil.toast("Code Formatted!");
                         }
 
-                    } else if (getIntent().hasExtra("xml")) {
+                    } else if (getIntent().hasExtra("xml") || (title != null && title.endsWith(".xml"))) {
                         String format = prettifyXml(binding.editor.getText().toString(), 4, getIntent());
 
                         if (format != null) {

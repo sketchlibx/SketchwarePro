@@ -4,21 +4,27 @@ import java.io.File;
 
 import a.a.a.ProjectBuilder;
 import a.a.a.yq;
+import mod.hey.studios.project.ProjectSettings;
 import mod.jbk.build.BuildProgressReceiver;
 import mod.jbk.build.BuiltInLibraries;
 import pro.sketchware.util.library.BuiltInLibraryManager;
 import pro.sketchware.utility.FileUtil;
 
 public class KotlinCompilerBridge {
+
+    private static boolean isKotlinEnabled(ProjectBuilder builder) {
+        return builder.settings.getValue(ProjectSettings.SETTING_JAVA_TO_KOTLIN, "false").equals("true");
+    }
+
     public static void compileKotlinCodeIfPossible(BuildProgressReceiver receiver, ProjectBuilder builder) throws Throwable {
-        if (KotlinCompilerUtil.areAnyKtFilesPresent(builder)) {
+        if (isKotlinEnabled(builder) && KotlinCompilerUtil.areAnyKtFilesPresent(builder)) {
             receiver.onProgress("Kotlin is compiling...", 12);
             new KotlinCompiler(builder).compile();
         }
     }
 
     public static void maybeAddKotlinBuiltInLibraryDependenciesIfPossible(ProjectBuilder builder, BuiltInLibraryManager builtInLibraryManager) {
-        if (KotlinCompilerUtil.areAnyKtFilesPresent(builder)) {
+        if (isKotlinEnabled(builder) && KotlinCompilerUtil.areAnyKtFilesPresent(builder)) {
             builtInLibraryManager.addLibrary(BuiltInLibraries.JETBRAINS_KOTLIN_STDLIB);
         }
     }

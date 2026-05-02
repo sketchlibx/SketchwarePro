@@ -122,18 +122,22 @@ public class ViewBeanParser {
 
         int type = ViewBean.getViewTypeByTypeName(className);
 
-        if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !className.equals("LinearLayout")) {
-            if (className.contains("Switch")) type = ViewBean.VIEW_TYPE_WIDGET_SWITCH;
-            else if (className.contains("ProgressIndicator") || className.contains("ProgressBar") || className.contains("LoadingIndicator")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
-            else if (className.contains("CheckBox") || className.contains("Chip")) type = ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
-            else if (className.contains("Slider") || className.contains("SeekBar")) type = ViewBean.VIEW_TYPE_WIDGET_SEEKBAR;
-            else if (className.contains("Button")) type = ViewBean.VIEW_TYPE_WIDGET_BUTTON;
-            else if (className.contains("TextView") || className.contains("AutoComplete")) type = ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
-            else if (className.contains("ImageView")) type = ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
-            else if (className.contains("CardView")) type = 36;
-            else if (className.contains("RecyclerView")) type = 48;
-            else if (className.contains("FloatingActionButton") || className.contains("FAB")) type = ViewBean.VIEW_TYPE_WIDGET_FAB;
-            else if (className.contains("ConstraintLayout")) type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+        // PRO FIX: We do NOT force-convert complex Material types into basic Linear/TextView types
+        // if they are explicitly fully qualified, to prevent CardView from turning into TextView!
+        if (!name.contains(".")) {
+            if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !className.equals("LinearLayout")) {
+                if (className.contains("Switch")) type = ViewBean.VIEW_TYPE_WIDGET_SWITCH;
+                else if (className.contains("ProgressIndicator") || className.contains("ProgressBar") || className.contains("LoadingIndicator")) type = ViewBean.VIEW_TYPE_WIDGET_PROGRESSBAR;
+                else if (className.contains("CheckBox") || className.contains("Chip")) type = ViewBean.VIEW_TYPE_WIDGET_CHECKBOX;
+                else if (className.contains("Slider") || className.contains("SeekBar")) type = ViewBean.VIEW_TYPE_WIDGET_SEEKBAR;
+                else if (className.contains("Button")) type = ViewBean.VIEW_TYPE_WIDGET_BUTTON;
+                else if (className.contains("TextView") || className.contains("AutoComplete")) type = ViewBean.VIEW_TYPE_WIDGET_TEXTVIEW;
+                else if (className.contains("ImageView")) type = ViewBean.VIEW_TYPE_WIDGET_IMAGEVIEW;
+                else if (className.contains("CardView")) type = 36;
+                else if (className.contains("RecyclerView")) type = 48;
+                else if (className.contains("FloatingActionButton") || className.contains("FAB")) type = ViewBean.VIEW_TYPE_WIDGET_FAB;
+                else if (className.contains("ConstraintLayout")) type = ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT;
+            }
         }
 
         return getViewTypeByTag(name, type);
@@ -141,7 +145,7 @@ public class ViewBeanParser {
 
     public static int getViewTypeByTag(String tag, int defaultType) {
         var type = ViewBeanFactory.getConsideredTypeViewByName(getNameFromTag(tag), defaultType);
-        if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR) {
+        if (type == ViewBean.VIEW_TYPE_LAYOUT_LINEAR && !tag.contains(".")) {
             var view = InvokeUtil.createView(getContext(), tag);
             if (view != null) {
                 Class<?> clazz = view.getClass();
@@ -192,8 +196,9 @@ public class ViewBeanParser {
                         }
                         rootAttributes = Pair.create(name, attributes);
                         isRootSkipped = true;
-                        break;
+                        break; 
                     }
+                    
                     var className = getNameFromTag(name);
                     int type = getViewTypeByClassName(name);
 
@@ -230,6 +235,8 @@ public class ViewBeanParser {
                         }
                     } 
                     
+                    // PRO FIX: If the tag is fully qualified (e.g. com.google.android.material...)
+                    // we strictly mark it as a Custom Widget so the XML generator recreates it exactly as it was!
                     if (!oldBeanFound && name.contains(".")) {
                         if (type == ViewBean.VIEW_TYPE_LAYOUT_CONSTRAINT || className.equals("ConstraintLayout")) {
                             isCustom = false;
@@ -295,9 +302,40 @@ public class ViewBeanParser {
                     String key = entry.getKey();
                     String value = entry.getValue();
                     
+                    // PRO FIX: Strict bypassing!
+                    // If a custom view has ANY attribute, we put it straight into inject so it doesn't get swallowed.
+                    if (bean.isCustomWidget) {
+                        if (key.startsWith("app:layout_constraint")) {
+                            String parsedValue = value;
+                            if (parsedValue.startsWith("@+id/")) {
+                                parsedValue = "@id/" + parsedValue.substring(5);
+                            } else if (!parsedValue.startsWith("@id/") && !parsedValue.equals("parent") && !parsedValue.equals("true") && !parsedValue.equals("false")) {
+                                try {
+                                    Float.parseFloat(parsedValue); 
+                                } catch (NumberFormatException e) {
+                                   if (!parsedValue.contains(":")) {
+                                       parsedValue = "@id/" + parsedValue;
+                                   }
+                                }
+                            }
+                            bean.parentAttributes.put(key, parsedValue);
+                        } else if (key.startsWith("android:layout_") && !key.equals("android:layout_marginHorizontal") && !key.equals("android:layout_marginVertical")) {
+                            // Standard layout params go to parentAttributes so parent container can measure them
+                            if (!key.equals("android:layout_width") && !key.equals("android:layout_height") && !key.equals("android:layout_weight") && !key.equals("android:layout_gravity")) {
+                                bean.parentAttributes.put(key, parseReferName(value, "/"));
+                            } else {
+                                injectMap.put(key, value);
+                            }
+                        } else {
+                            injectMap.put(key, value);
+                        }
+                        continue;
+                    }
+
                     boolean isNativeToAll = key.equals("android:id") || key.equals("android:layout_width") || key.equals("android:layout_height") ||
-                                            key.startsWith("android:layout_margin") || key.startsWith("android:padding") ||
-                                            key.equals("android:background") || key.equals("android:layout_weight") ||
+                                            key.equals("android:layout_margin") || key.equals("android:layout_marginLeft") || key.equals("android:layout_marginTop") || key.equals("android:layout_marginRight") || key.equals("android:layout_marginBottom") ||
+                                            key.equals("android:padding") || key.equals("android:paddingLeft") || key.equals("android:paddingTop") || key.equals("android:paddingRight") || key.equals("android:paddingBottom") ||
+                                            (key.equals("android:background") && !value.equals("@null")) || key.equals("android:layout_weight") ||
                                             key.equals("android:layout_gravity") || key.equals("android:gravity");
 
                     boolean isNativeToType = false;
@@ -326,7 +364,7 @@ public class ViewBeanParser {
                     }
 
                     if (!isNativeToAll && !isNativeToType) {
-                        if (key.startsWith("android:layout_")) {
+                        if (key.startsWith("android:layout_") && !key.equals("android:layout_marginHorizontal") && !key.equals("android:layout_marginVertical")) {
                             bean.parentAttributes.put(key, parseReferName(value, "/"));
                         } else if (key.startsWith("app:layout_constraint")) {
                             String parsedValue = value;

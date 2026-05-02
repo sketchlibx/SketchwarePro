@@ -27,6 +27,7 @@
         android:theme="@style/Theme.SketchwarePro"
         android:usesCleartextTraffic="true"
         tools:targetApi="p">
+        
         <activity
             android:name=".activities.iconcreator.IconCreatorActivity"
             android:exported="false"
@@ -96,16 +97,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
+    <action android:name="android.intent.action.VIEW" />
 
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
+    <category android:name="android.intent.category.DEFAULT" />
 
-                <data android:scheme="file" />
-                <data android:scheme="content" />
-                <data android:mimeType="*/*" />
-                <data android:pathPattern=".*\\.swb" />
-            </intent-filter>
+    <data android:scheme="file" />
+    <data android:scheme="content" />
+    <data android:pathPattern=".*\\.swb" />
+</intent-filter>
         </activity>
         <activity
             android:name="com.besome.sketch.editor.manage.view.ManageViewActivity"

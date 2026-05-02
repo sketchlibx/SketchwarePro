@@ -84,11 +84,11 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
         binding.showOptionsButton.setOnClickListener(view -> hideShowOptionsButton(false));
         binding.closeButton.setOnClickListener(view -> hideShowOptionsButton(true));
         binding.createNewButton.setOnClickListener(v -> {
-            showCreateDialog();
+            showCreateDialog(isTreeViewEnabled ? fpu.getPathAssets(sc_id) : current_path);
             hideShowOptionsButton(true);
         });
         binding.importNewButton.setOnClickListener(v -> {
-            showImportDialog();
+            showImportDialog(isTreeViewEnabled ? fpu.getPathAssets(sc_id) : current_path);
             hideShowOptionsButton(true);
         });
     }
@@ -123,7 +123,7 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
     }
 
     @SuppressLint("SetTextI18n")
-    private void showCreateDialog() {
+    private void showCreateDialog(String targetPath) {
         DialogCreateNewFileLayoutBinding dialogBinding = DialogCreateNewFileLayoutBinding.inflate(getLayoutInflater());
         var inputText = dialogBinding.inputText;
 
@@ -147,9 +147,9 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
 
                 int checkedChipId = dialogBinding.chipGroupTypes.getCheckedChipId();
                 if (checkedChipId == R.id.chip_file) {
-                    FileUtil.writeFile(new File(current_path, editable).getAbsolutePath(), "");
+                    FileUtil.writeFile(new File(targetPath, editable).getAbsolutePath(), "");
                 } else if (checkedChipId == R.id.chip_folder) {
-                    FileUtil.makeDir(new File(current_path, editable).getAbsolutePath());
+                    FileUtil.makeDir(new File(targetPath, editable).getAbsolutePath());
                 } else {
                     SketchwareUtil.toast("Select a file type");
                     return;
@@ -171,7 +171,7 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
         inputText.requestFocus();
     }
 
-    private void showImportDialog() {
+    private void showImportDialog(String targetPath) {
         FilePickerOptions options = new FilePickerOptions();
         options.setSelectionMode(SelectionMode.BOTH);
         options.setMultipleSelection(true);
@@ -182,7 +182,7 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
             public void onFilesSelected(@NotNull List<? extends File> files) {
                 for (File file : files) {
                     try {
-                        FileUtil.copyDirectory(file, new File(current_path, file.getName()));
+                        FileUtil.copyDirectory(file, new File(targetPath, file.getName()));
                         forceRefreshTree();
                     } catch (IOException e) {
                         SketchwareUtil.toastError("Couldn't import file! [" + e.getMessage() + "]");
@@ -239,6 +239,16 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
         refresh();
     }
 
+    private void sortTreePaths(ArrayList<String> paths) {
+        paths.sort((p1, p2) -> {
+            boolean isDir1 = new File(p1).isDirectory();
+            boolean isDir2 = new File(p2).isDirectory();
+            if (isDir1 && !isDir2) return -1;
+            if (!isDir1 && isDir2) return 1;
+            return String.CASE_INSENSITIVE_ORDER.compare(new File(p1).getName(), new File(p2).getName());
+        });
+    }
+
     private void refresh() {
         if (!FileUtil.isExistFile(fpu.getPathAssets(sc_id))) {
             FileUtil.makeDir(fpu.getPathAssets(sc_id));
@@ -252,14 +262,14 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
                 rootNodes = new ArrayList<>();
                 ArrayList<String> paths = new ArrayList<>();
                 FileUtil.listDir(fpu.getPathAssets(sc_id), paths);
-                Helper.sortPaths(paths);
+                sortTreePaths(paths);
                 for (String p : paths) rootNodes.add(new FileNode(p, 0));
             }
             refreshFlatList();
         } else {
             ArrayList<String> currentTree = new ArrayList<>();
             FileUtil.listDir(current_path, currentTree);
-            Helper.sortPaths(currentTree);
+            sortTreePaths(currentTree);
 
             flatNodesList.clear();
             for (String p : currentTree) {
@@ -296,7 +306,7 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
                 node.children = new ArrayList<>();
                 ArrayList<String> paths = new ArrayList<>();
                 FileUtil.listDir(node.path, paths);
-                Helper.sortPaths(paths);
+                sortTreePaths(paths);
                 for (String p : paths) {
                     node.children.add(new FileNode(p, node.depth + 1));
                 }
@@ -361,7 +371,7 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
                 int iconPadding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
                 binding.title.setCompoundDrawablePadding(iconPadding);
 
-                binding.more.setVisibility(View.VISIBLE);
+                binding.more.setVisibility(View.GONE);
 
                 if (node.isFolder) {
                     binding.title.setTypeface(null, Typeface.BOLD);
@@ -431,18 +441,22 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
             });
 
             binding.getRoot().setOnLongClickListener(view -> {
-                binding.more.performClick();
+                if (isTreeViewEnabled) {
+                    showTreeContextMenu(view, position, node);
+                } else {
+                    if (binding.more.getVisibility() == View.VISIBLE) {
+                        binding.more.performClick();
+                    }
+                }
                 return true;
             });
 
             Helper.applyRipple(holder.itemView.getContext(), binding.more);
             binding.more.setOnClickListener(v -> {
                 PopupMenu popupMenu = new PopupMenu(holder.itemView.getContext(), v);
-
                 if (!node.isFolder) {
                     popupMenu.getMenu().add(0, 0, 0, "Edit");
                 }
-
                 popupMenu.getMenu().add(0, 1, 0, "Rename");
                 popupMenu.getMenu().add(0, 2, 0, "Delete");
 
@@ -451,14 +465,37 @@ public class ManageAssetsActivity extends BaseAppCompatActivity {
                         case 0 -> goEditFile(position);
                         case 1 -> showRenameDialog(position);
                         case 2 -> showDeleteDialog(position);
-                        default -> {
-                            return false;
-                        }
+                        default -> { return false; }
                     }
                     return true;
                 });
                 popupMenu.show();
             });
+        }
+
+        private void showTreeContextMenu(View v, int position, FileNode node) {
+            PopupMenu popupMenu = new PopupMenu(ManageAssetsActivity.this, v, Gravity.CENTER);
+            if (node.isFolder) {
+                popupMenu.getMenu().add(0, 3, 0, "Create inside");
+                popupMenu.getMenu().add(0, 4, 0, "Import here");
+            } else {
+                popupMenu.getMenu().add(0, 0, 0, "Edit");
+            }
+            popupMenu.getMenu().add(0, 1, 0, "Rename");
+            popupMenu.getMenu().add(0, 2, 0, "Delete");
+
+            popupMenu.setOnMenuItemClickListener(itemMenu -> {
+                switch (itemMenu.getItemId()) {
+                    case 0 -> goEditFile(position);
+                    case 1 -> showRenameDialog(position);
+                    case 2 -> showDeleteDialog(position);
+                    case 3 -> showCreateDialog(node.path);
+                    case 4 -> showImportDialog(node.path);
+                    default -> { return false; }
+                }
+                return true;
+            });
+            popupMenu.show();
         }
 
         @Override

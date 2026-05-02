@@ -145,11 +145,11 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         binding.showOptionsButton.setOnClickListener(view -> hideShowOptionsButton(false));
         binding.closeButton.setOnClickListener(view -> hideShowOptionsButton(true));
         binding.createNewButton.setOnClickListener(v -> {
-            showCreateDialog();
+            showCreateDialog(isTreeViewEnabled ? fpu.getPathJava(sc_id) : current_path);
             hideShowOptionsButton(true);
         });
         binding.importNewButton.setOnClickListener(v -> {
-            showImportDialog();
+            showImportDialog(isTreeViewEnabled ? fpu.getPathJava(sc_id) : current_path);
             hideShowOptionsButton(true);
         });
     }
@@ -159,11 +159,11 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         binding.showOptionsButton.animate().translationY(isHide ? 0 : 300).alpha(isHide ? 1 : 0).setInterpolator(new OvershootInterpolator());
     }
 
-    private String getCurrentPkgName() {
+    private String getPkgNameForPath(String targetPath) {
         String pkgName = getIntent().getStringExtra("pkgName");
         try {
             String trimmedPath = Helper.trimPath(fpu.getPathJava(sc_id));
-            String substring = current_path.substring(current_path.indexOf(trimmedPath) + trimmedPath.length());
+            String substring = targetPath.substring(targetPath.indexOf(trimmedPath) + trimmedPath.length());
             if (substring.endsWith("/")) substring = substring.substring(0, substring.length() - 1);
             if (substring.startsWith("/")) substring = substring.substring(1);
             String replace = substring.replace("/", ".");
@@ -173,14 +173,14 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         }
     }
 
-    private void showCreateDialog() {
+    private void showCreateDialog(String targetPath) {
         DialogCreateNewFileLayoutBinding dialogBinding = DialogCreateNewFileLayoutBinding.inflate(getLayoutInflater());
         var inputText = dialogBinding.inputText;
 
         var dialog = new MaterialAlertDialogBuilder(this)
                 .setView(dialogBinding.getRoot())
                 .setTitle("Create new")
-                .setMessage("File will be created in the currently selected directory.")
+                .setMessage("File will be created in the selected directory.")
                 .setNegativeButton("Cancel", (dialogInterface, i) -> dialogInterface.dismiss())
                 .setPositiveButton("Create", null)
                 .create();
@@ -197,7 +197,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                 }
 
                 String name = Helper.getText(inputText);
-                String packageName = getCurrentPkgName();
+                String packageName = getPkgNameForPath(targetPath);
                 String extension;
                 String newFileContent;
                 int checkedChipId = dialogBinding.chipGroupTypes.getCheckedChipId();
@@ -214,7 +214,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                     newFileContent = String.format(KT_ACTIVITY_TEMPLATE, packageName, name);
                     extension = ".kt";
                 } else if (checkedChipId == R.id.chip_folder) {
-                    FileUtil.makeDir(new File(current_path, name).getAbsolutePath());
+                    FileUtil.makeDir(new File(targetPath, name).getAbsolutePath());
                     forceRefreshTree();
                     SketchwareUtil.toast("Folder was created successfully");
                     dialog.dismiss();
@@ -224,7 +224,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                     return;
                 }
 
-                FileUtil.writeFile(new File(current_path, name + extension).getAbsolutePath(), newFileContent);
+                FileUtil.writeFile(new File(targetPath, name + extension).getAbsolutePath(), newFileContent);
                 forceRefreshTree();
                 SketchwareUtil.toast("File was created successfully");
                 dialog.dismiss();
@@ -240,7 +240,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         dialog.show();
     }
 
-    private void showImportDialog() {
+    private void showImportDialog(String targetPath) {
         FilePickerOptions options = new FilePickerOptions();
         options.setMultipleSelection(true);
         options.setExtensions(new String[]{"java", "kt"});
@@ -252,9 +252,9 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                 for (File file : files) {
                     String fileContent = FileUtil.readFile(file.getAbsolutePath());
                     if (fileContent.contains("package ")) {
-                        fileContent = fileContent.replaceFirst(PACKAGE_DECL_REGEX, "package " + getCurrentPkgName() + (file.getName().endsWith(".java") ? ";" : "") + "\n");
+                        fileContent = fileContent.replaceFirst(PACKAGE_DECL_REGEX, "package " + getPkgNameForPath(targetPath) + (file.getName().endsWith(".java") ? ";" : "") + "\n");
                     }
-                    FileUtil.writeFile(new File(current_path, file.getName()).getAbsolutePath(), fileContent);
+                    FileUtil.writeFile(new File(targetPath, file.getName()).getAbsolutePath(), fileContent);
                 }
                 forceRefreshTree();
             }
@@ -323,6 +323,16 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
         refresh();
     }
 
+    private void sortTreePaths(ArrayList<String> paths) {
+        paths.sort((p1, p2) -> {
+            boolean isDir1 = new File(p1).isDirectory();
+            boolean isDir2 = new File(p2).isDirectory();
+            if (isDir1 && !isDir2) return -1;
+            if (!isDir1 && isDir2) return 1;
+            return String.CASE_INSENSITIVE_ORDER.compare(new File(p1).getName(), new File(p2).getName());
+        });
+    }
+
     private void refresh() {
         if (!FileUtil.isExistFile(fpu.getPathJava(sc_id))) {
             FileUtil.makeDir(fpu.getPathJava(sc_id));
@@ -339,14 +349,14 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                 rootNodes = new ArrayList<>();
                 ArrayList<String> paths = new ArrayList<>();
                 FileUtil.listDir(fpu.getPathJava(sc_id), paths);
-                Helper.sortPaths(paths);
+                sortTreePaths(paths);
                 for (String p : paths) rootNodes.add(new FileNode(p, 0));
             }
             refreshFlatList();
         } else {
             ArrayList<String> currentTree = new ArrayList<>();
             FileUtil.listDir(current_path, currentTree);
-            Helper.sortPaths(currentTree);
+            sortTreePaths(currentTree);
             
             flatNodesList.clear();
             for (String p : currentTree) {
@@ -383,7 +393,7 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
                 node.children = new ArrayList<>();
                 ArrayList<String> paths = new ArrayList<>();
                 FileUtil.listDir(node.path, paths);
-                Helper.sortPaths(paths);
+                sortTreePaths(paths);
                 for (String p : paths) {
                     node.children.add(new FileNode(p, node.depth + 1));
                 }
@@ -441,30 +451,23 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
 
                 int iconPadding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
                 holder.binding.title.setCompoundDrawablePadding(iconPadding);
+                
+                holder.binding.more.setVisibility(View.GONE);
 
                 if (node.isFolder) {
                     holder.binding.title.setTypeface(null, Typeface.BOLD);
-                    
-                    // Folder Chevron logic
                     holder.binding.icon.setVisibility(View.VISIBLE);
                     holder.binding.icon.setImageResource(node.isExpanded ? R.drawable.ic_mtrl_arrow_down : R.drawable.ic_mtrl_chevron_right_24);
                     holder.binding.icon.setColorFilter(ThemeUtils.getColor(ManageJavaActivity.this, R.attr.colorOnSurfaceVariant)); 
-                    
-                    // Actual folder icon is placed in the TextView!
                     holder.binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mtrl_folder, 0, 0, 0);
                 } else {
                     holder.binding.title.setTypeface(null, Typeface.NORMAL);
-                    
-                    // Make chevron invisible for files to preserve alignment perfectly!
                     holder.binding.icon.setVisibility(View.INVISIBLE);
                     holder.binding.icon.clearColorFilter();
-                    
-                    // Actual file icon is placed in the TextView!
                     int fileIcon = fileName.endsWith(".kt") ? R.drawable.ic_mtrl_kotlin : R.drawable.ic_mtrl_java;
                     holder.binding.title.setCompoundDrawablesRelativeWithIntrinsicBounds(fileIcon, 0, 0, 0);
                 }
             } else {
-                // 🔹 DEFAULT MANAGER VIEW
                 ViewGroup.MarginLayoutParams iconParams = (ViewGroup.MarginLayoutParams) holder.binding.icon.getLayoutParams();
                 iconParams.setMarginStart(0);
                 holder.binding.icon.setLayoutParams(iconParams);
@@ -499,8 +502,12 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
             });
 
             holder.binding.getRoot().setOnLongClickListener(view -> {
-                current_path = node.isFolder ? node.path : new File(node.path).getParent();
-                itemContextMenu(view, position, Gravity.CENTER);
+                if (isTreeViewEnabled) {
+                    treeContextMenu(view, position, node);
+                } else {
+                    current_path = node.isFolder ? node.path : new File(node.path).getParent();
+                    itemContextMenu(view, position, Gravity.CENTER);
+                }
                 return true;
             });
 
@@ -544,6 +551,71 @@ public class ManageJavaActivity extends BaseAppCompatActivity {
             intent.putExtra("title", getFileName(position));
             intent.putExtra("content", getItem(position));
             startActivity(intent);
+        }
+
+        private void treeContextMenu(View v, int position, FileNode node) {
+            PopupMenu popupMenu = new PopupMenu(ManageJavaActivity.this, v, Gravity.CENTER);
+            Menu popupMenuMenu = popupMenu.getMenu();
+
+            boolean isActivityInManifest = frc.getJavaManifestList().contains(getFullName(position));
+            boolean isServiceInManifest = frc.getServiceManifestList().contains(getFullName(position));
+
+            if (node.isFolder) {
+                popupMenuMenu.add("Create inside");
+                popupMenuMenu.add("Import here");
+            } else {
+                if (isActivityInManifest) popupMenuMenu.add("Remove Activity from manifest");
+                else if (!isServiceInManifest) popupMenuMenu.add("Add as Activity to manifest");
+
+                if (isServiceInManifest) popupMenuMenu.add("Remove Service from manifest");
+                else if (!isActivityInManifest) popupMenuMenu.add("Add as Service to manifest");
+
+                popupMenuMenu.add("Edit");
+                popupMenuMenu.add("Edit with...");
+            }
+
+            popupMenuMenu.add("Rename");
+            popupMenuMenu.add("Delete");
+
+            popupMenu.setOnMenuItemClickListener(item -> {
+                switch (item.getTitle().toString()) {
+                    case "Add as Activity to manifest" -> {
+                        frc.getJavaManifestList().add(getFullName(position));
+                        FileUtil.writeFile(fpu.getManifestJava(sc_id), new Gson().toJson(frc.listJavaManifest));
+                        SketchwareUtil.toast("Successfully added " + getFileNameWoExt(position) + " as Activity to AndroidManifest");
+                    }
+                    case "Remove Activity from manifest" -> {
+                        if (frc.getJavaManifestList().remove(getFullName(position))) {
+                            FileUtil.writeFile(fpu.getManifestJava(sc_id), new Gson().toJson(frc.listJavaManifest));
+                            SketchwareUtil.toast("Successfully removed Activity " + getFileNameWoExt(position) + " from AndroidManifest");
+                        } else SketchwareUtil.toast("Activity was not defined in AndroidManifest.");
+                    }
+                    case "Add as Service to manifest" -> {
+                        frc.getServiceManifestList().add(getFullName(position));
+                        FileUtil.writeFile(fpu.getManifestService(sc_id), new Gson().toJson(frc.listServiceManifest));
+                        SketchwareUtil.toast("Successfully added " + getFileNameWoExt(position) + " as Service to AndroidManifest");
+                    }
+                    case "Remove Service from manifest" -> {
+                        if (frc.getServiceManifestList().remove(getFullName(position))) {
+                            FileUtil.writeFile(fpu.getManifestService(sc_id), new Gson().toJson(frc.listServiceManifest));
+                            SketchwareUtil.toast("Successfully removed Service " + getFileNameWoExt(position) + " from AndroidManifest");
+                        } else SketchwareUtil.toast("Service was not defined in AndroidManifest.");
+                    }
+                    case "Create inside" -> showCreateDialog(node.path);
+                    case "Import here" -> showImportDialog(node.path);
+                    case "Edit" -> goEditFile(position);
+                    case "Edit with..." -> {
+                        Intent launchIntent = new Intent(Intent.ACTION_VIEW);
+                        launchIntent.setDataAndType(Uri.fromFile(new File(getItem(position))), "text/plain");
+                        startActivity(launchIntent);
+                    }
+                    case "Rename" -> showRenameDialog(position);
+                    case "Delete" -> showDeleteDialog(position);
+                    default -> { return false; }
+                }
+                return true;
+            });
+            popupMenu.show();
         }
 
         private void itemContextMenu(View v, int position, int gravity) {

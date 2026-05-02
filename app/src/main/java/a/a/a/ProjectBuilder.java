@@ -97,6 +97,7 @@ public class ProjectBuilder {
     private BuildProgressReceiver progressReceiver;
     private boolean buildAppBundle = false;
     private ArrayList<File> dexesToAddButNotMerge = new ArrayList<>();
+    private boolean isMultiDexEnabled = false; 
 
     private long timestampResourceCompilationStarted;
 
@@ -187,6 +188,14 @@ public class ProjectBuilder {
                 BuildSettings.SETTING_DEXER,
                 BuildSettings.SETTING_DEXER_DX
         ).equals(BuildSettings.SETTING_DEXER_D8);
+    }
+    
+    public void setMultiDexEnabled(boolean isEnabled) {
+        this.isMultiDexEnabled = isEnabled;
+    }
+    
+    public boolean isMultiDexEnabled() {
+        return isMultiDexEnabled;
     }
 
     public String getDxRunningText() {
@@ -768,6 +777,18 @@ public class ProjectBuilder {
         sb.append("-keep class ").append(yq.packageName).append(".R { *; }").append('\n');
         return sb.toString();
     }
+    
+    private boolean isR8ServiceRunning(Context context) {
+        android.app.ActivityManager manager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (manager != null) {
+            for (android.app.ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+                if ("mod.pranav.build.R8Service".equals(service.service.getClassName())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     public void runR8() throws IOException {
         long savedTimeMillis = System.currentTimeMillis();
@@ -812,6 +833,7 @@ public class ProjectBuilder {
             oos.writeObject(getProguardClasspath().split(":"));
             oos.writeObject(jars.toArray(new String[0]));
             oos.writeInt(settings.getMinSdkVersion());
+            oos.writeBoolean(isMultiDexEnabled);
         } catch (Exception e) {
             throw new IOException("Failed to serialize R8 args: " + e.getMessage());
         }
@@ -831,7 +853,7 @@ public class ProjectBuilder {
         
         int flags = 0;
         if (Build.VERSION.SDK_INT >= 33) {
-            flags = 4;
+            flags = 4; // RECEIVER_NOT_EXPORTED
         }
         
         if (Build.VERSION.SDK_INT >= 33) {
@@ -847,7 +869,14 @@ public class ProjectBuilder {
         context.startService(intent);
         
         try {
-            latch.await();
+            boolean isFinished = false;
+            while (!isFinished) {
+                isFinished = latch.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                if (!isFinished && !isR8ServiceRunning(context)) {
+                    error[0] = "R8 Service crashed silently in the background!\n(Likely killed by Android OS due to High RAM usage or OOM).";
+                    break;
+                }
+            }
         } catch (InterruptedException e) {
             throw new IOException("R8 Interrupted");
         } finally {

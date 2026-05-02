@@ -8,6 +8,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -25,6 +26,7 @@ import com.google.gson.Gson;
 
 import org.cosmic.ide.dependency.resolver.api.Artifact;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +54,8 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     private boolean notAssociatedWithProject;
     private String dependencyName;
     private String localLibFile;
+    private String prefillDependencyUrl = null;
+    private boolean isUpgradeMode = false;
     private OnLibraryDownloadedTask onLibraryDownloadedTask;
 
     private ConnectivityManager connectivityManager;
@@ -89,6 +93,22 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
         notAssociatedWithProject = getArguments().getBoolean("notAssociatedWithProject", false);
         buildSettings = (BuildSettings) getArguments().getSerializable("buildSettings");
         localLibFile = getArguments().getString("localLibFile");
+        
+        prefillDependencyUrl = getArguments().getString("prefillDependency");
+        isUpgradeMode = getArguments().getBoolean("isUpgradeMode", false);
+
+        if (prefillDependencyUrl != null && !prefillDependencyUrl.isEmpty()) {
+            String[] dp = prefillDependencyUrl.split(":");
+            if (dp.length == 3 && isUpgradeMode) {
+                binding.dependencyInput.setText(dp[0] + ":" + dp[1] + ":+");
+                binding.dependencyInfo.setText("Please enter the version you want to upgrade/downgrade to (e.g. 2.9.0) or leave '+' to fetch the latest.");
+            } else {
+                binding.dependencyInput.setText(prefillDependencyUrl);
+            }
+        } else {
+            // Updated hint to show that URL is also supported
+            binding.dependencyInputLayout.setHint("Dependency (group:artifact:version) OR Direct URL (.aar/.jar)");
+        }
 
         binding.btnDownload.setOnClickListener(v -> initDownloadFlow());
 
@@ -129,34 +149,49 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
     }
 
     private void initDownloadFlow() {
-        dependencyName = Helper.getText(binding.dependencyInput);
+        dependencyName = Helper.getText(binding.dependencyInput).trim();
         if (dependencyName.isEmpty()) {
-            binding.dependencyInputLayout.setError("Please enter a dependency");
+            binding.dependencyInputLayout.setError("Please enter a dependency or URL");
             binding.dependencyInputLayout.setErrorEnabled(true);
             return;
         }
 
-        var parts = dependencyName.split(":");
-        if (parts.length != 3) {
-            binding.dependencyInputLayout.setError("Invalid dependency format");
-            binding.dependencyInputLayout.setErrorEnabled(true);
-            return;
-        }
+        boolean isDirectUrl = dependencyName.startsWith("http://") || dependencyName.startsWith("https://");
 
-        showDownloadConfirmationDialog(parts[0], parts[1], parts[2]);
+        if (isDirectUrl) {
+            showDownloadConfirmationDialog(dependencyName, "direct", "url");
+        } else {
+            var parts = dependencyName.split(":");
+            if (parts.length != 3) {
+                binding.dependencyInputLayout.setError("Invalid format. Use group:artifact:version OR a full http(s) URL");
+                binding.dependencyInputLayout.setErrorEnabled(true);
+                return;
+            }
+            showDownloadConfirmationDialog(parts[0], parts[1], parts[2]);
+        }
     }
 
     private void showDownloadConfirmationDialog(String group, String artifact, String version) {
+        boolean isDirectUrl = group.startsWith("http://") || group.startsWith("https://");
         boolean skipSubdependencies = binding.cbSkipSubdependencies.isChecked();
 
-        String message = skipSubdependencies 
-                ? "Are you sure you want to download " + dependencyName 
-                : "Are you sure you want to download " + dependencyName + " and its sub-dependencies?";
+        String message;
+        if (isDirectUrl) {
+            message = "Are you sure you want to download the library directly from this URL?\n\n" + dependencyName;
+        } else {
+            message = skipSubdependencies 
+                    ? "Are you sure you want to download " + dependencyName 
+                    : "Are you sure you want to download " + dependencyName + " and its sub-dependencies?";
+        }
+
+        if (isUpgradeMode) {
+            message = "Old versions of this library will be safely removed and replaced with " + dependencyName + ".\n\n" + message;
+        }
 
         new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Confirm Download")
+                .setTitle(isUpgradeMode ? "Confirm Upgrade" : "Confirm Download")
                 .setMessage(message)
-                .setPositiveButton("Download", (dialog, which) -> startDownloadProcess(group, artifact, version))
+                .setPositiveButton(isUpgradeMode ? "Upgrade" : "Download", (dialog, which) -> startDownloadProcess(group, artifact, version))
                 .setNegativeButton("Cancel", null)
                 .show();
     }
@@ -169,6 +204,21 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
         binding.dependenciesRecyclerView.setVisibility(View.VISIBLE);
 
         setDownloadState(true);
+        
+        if (isUpgradeMode && prefillDependencyUrl != null && !prefillDependencyUrl.startsWith("http")) {
+            String[] dp = prefillDependencyUrl.split(":");
+            if (dp.length >= 2) {
+                String libraryId = dp[0] + "-" + dp[1];
+                File libsFolder = new File(Environment.getExternalStorageDirectory(), ".sketchware/libs/local_libs/");
+                if (libsFolder.exists() && libsFolder.listFiles() != null) {
+                    for (File lib : libsFolder.listFiles()) {
+                        if (lib.getName().startsWith(libraryId)) {
+                            FileUtil.deleteFile(lib.getAbsolutePath()); 
+                        }
+                    }
+                }
+            }
+        }
 
         var resolver = new DependencyResolver(group, artifact, version,
                 binding.cbSkipSubdependencies.isChecked(), buildSettings);
@@ -308,6 +358,17 @@ public class LibraryDownloaderDialogFragment extends BottomSheetDialogFragment {
                             if (!notAssociatedWithProject) {
                                 var fileContent = FileUtil.readFile(localLibFile);
                                 var enabledLibs = gson.fromJson(fileContent, Helper.TYPE_MAP_LIST);
+                                
+                                if (isUpgradeMode && prefillDependencyUrl != null && !prefillDependencyUrl.startsWith("http")) {
+                                    String oldBaseName = prefillDependencyUrl.split(":")[0] + "-" + prefillDependencyUrl.split(":")[1];
+                                    for (int i = 0; i < enabledLibs.size(); i++) {
+                                        if (enabledLibs.get(i).get("name").toString().startsWith(oldBaseName)) {
+                                            enabledLibs.remove(i);
+                                            break;
+                                        }
+                                    }
+                                }
+
                                 enabledLibs.addAll(dependencies.stream()
                                         .map(name -> createLibraryMap(name, dependencyName))
                                         .toList());

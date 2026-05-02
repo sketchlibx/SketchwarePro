@@ -400,12 +400,6 @@ public class Jx {
             sb.append("public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {").append(EOL);
             sb.append("super.onRequestPermissionsResult(requestCode, permissions, grantResults);").append(EOL);
             
-            if (permissionManager.hasPermission && !isFragment) {
-                sb.append("if (requestCode == 1000) {").append(EOL);
-                sb.append("initializeLogic();").append(EOL);
-                sb.append("}").append(EOL);
-            }
-            
             if (!userPermissionLogic.isEmpty()) {
                 sb.append(userPermissionLogic).append(EOL);
             }

@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.besome.sketch.lib.base.BaseAppCompatActivity;
@@ -44,7 +45,10 @@ public class LogReaderActivity extends BaseAppCompatActivity {
 
     private final BroadcastReceiver logger = new Logger();
     private final Pattern logPattern = Pattern.compile("^(.*\\d) ([VADEIW]) (.*): (.*)");
+    
     private final ArrayList<HashMap<String, Object>> mainList = new ArrayList<>();
+    private final ArrayList<HashMap<String, Object>> displayList = new ArrayList<>();
+    
     private String pkgFilter = "";
     private String packageName = "pro.sketchware";
     private boolean autoScroll = true;
@@ -64,7 +68,11 @@ public class LogReaderActivity extends BaseAppCompatActivity {
     }
 
     private void initialize() {
-        binding.logsRecyclerView.setAdapter(new Adapter(new ArrayList<>()));
+        // PRO FIX: Initialized LayoutManager correctly so logs actually render on screen
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        layoutManager.setStackFromEnd(false);
+        binding.logsRecyclerView.setLayoutManager(layoutManager);
+        binding.logsRecyclerView.setAdapter(new Adapter(displayList));
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction("pro.sketchware.ACTION_NEW_DEBUG_LOG");
@@ -79,14 +87,16 @@ public class LogReaderActivity extends BaseAppCompatActivity {
             int id = item.getItemId();
             if (id == R.id.action_clear) {
                 mainList.clear();
+                displayList.clear();
                 if (binding.logsRecyclerView.getAdapter() != null) {
-                    ((Adapter) binding.logsRecyclerView.getAdapter()).deleteAll();
+                    binding.logsRecyclerView.getAdapter().notifyDataSetChanged();
+                    ((Adapter) binding.logsRecyclerView.getAdapter()).checkEmptyState();
                 }
             } else if (id == R.id.action_auto_scroll) {
                 autoScroll = !item.isChecked();
                 item.setChecked(autoScroll);
-                if (autoScroll && binding.logsRecyclerView.getAdapter() != null) {
-                    binding.logsRecyclerView.getLayoutManager().scrollToPosition(binding.logsRecyclerView.getAdapter().getItemCount() - 1);
+                if (autoScroll && !displayList.isEmpty()) {
+                    binding.logsRecyclerView.scrollToPosition(displayList.size() - 1);
                 }
             } else if (id == R.id.action_filter) {
                 showFilterDialog();
@@ -99,26 +109,30 @@ public class LogReaderActivity extends BaseAppCompatActivity {
         binding.searchInput.addTextChangedListener(new BaseTextWatcher() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String _charSeq = s.toString();
-                if (_charSeq.isEmpty() && pkgFilterList.isEmpty()) {
-                    binding.logsRecyclerView.setAdapter(new Adapter(mainList));
-                } else {
-                    ArrayList<HashMap<String, Object>> filteredList = new ArrayList<>();
-                    for (HashMap<String, Object> m : mainList) {
-                        if (!pkgFilterList.isEmpty()) {
-                            if (m.containsKey("pkgName") && pkgFilterList.contains(safeGet(m, "pkgName"))) {
-                                if (safeGet(m, "logRaw").toLowerCase().contains(_charSeq.toLowerCase())) {
-                                    filteredList.add(m);
-                                }
-                            }
-                        } else if (safeGet(m, "logRaw").toLowerCase().contains(_charSeq.toLowerCase())) {
-                            filteredList.add(m);
-                        }
-                    }
-                    binding.logsRecyclerView.setAdapter(new Adapter(filteredList));
-                }
+                applyFilters();
             }
         });
+    }
+
+    private void applyFilters() {
+        displayList.clear();
+        String _charSeq = Helper.getText(binding.searchInput).trim();
+        boolean hasSearchFilter = !_charSeq.isEmpty();
+        boolean hasPkgFilter = !pkgFilterList.isEmpty();
+
+        for (HashMap<String, Object> m : mainList) {
+            boolean matchesSearch = !hasSearchFilter || safeGet(m, "logRaw").toLowerCase().contains(_charSeq.toLowerCase());
+            boolean matchesPkg = !hasPkgFilter || (m.containsKey("pkgName") && pkgFilterList.contains(safeGet(m, "pkgName")));
+
+            if (matchesSearch && matchesPkg) {
+                displayList.add(m);
+            }
+        }
+
+        if (binding.logsRecyclerView.getAdapter() != null) {
+            binding.logsRecyclerView.getAdapter().notifyDataSetChanged();
+            ((Adapter) binding.logsRecyclerView.getAdapter()).checkEmptyState();
+        }
     }
 
     void showFilterDialog() {
@@ -133,14 +147,19 @@ public class LogReaderActivity extends BaseAppCompatActivity {
                 .setIcon(R.drawable.ic_mtrl_filter)
                 .setView(view)
                 .setPositiveButton("Apply", (dialog, which) -> {
-                    pkgFilter = Helper.getText(dialogBinding.easyEdInput);
-                    pkgFilterList = new ArrayList<>(Arrays.asList(pkgFilter.split(",")));
-                    binding.searchInput.setText(Helper.getText(binding.searchInput));
+                    pkgFilter = Helper.getText(dialogBinding.easyEdInput).trim();
+                    if (pkgFilter.isEmpty()) {
+                        pkgFilterList.clear();
+                    } else {
+                        pkgFilterList = new ArrayList<>(Arrays.asList(pkgFilter.split("\\s*,\\s*")));
+                    }
+                    applyFilters();
                 })
                 .setNeutralButton("Reset", (dialog, which) -> {
                     pkgFilter = "";
                     pkgFilterList.clear();
                     dialogBinding.easyEdInput.setText("");
+                    applyFilters();
                 })
                 .setNegativeButton("Cancel", null)
                 .create();
@@ -231,26 +250,21 @@ public class LogReaderActivity extends BaseAppCompatActivity {
                     map.put("culturedLog", "true");
                 }
 
+                // Add to master list always
                 mainList.add(map);
-                if (binding.logsRecyclerView.getAdapter() != null) {
-                    Adapter adapter = (Adapter) binding.logsRecyclerView.getAdapter();
-                    
-                    if (pkgFilterList.isEmpty()) {
-                        if (!Helper.getText(binding.searchInput).isEmpty()) {
-                            if (logRaw.toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
-                                adapter.updateList(map);
-                            }
-                        } else {
-                            adapter.updateList(map);
-                        }
-                    } else if (map.containsKey("pkgName") && pkgFilterList.contains(safeGet(map, "pkgName"))) {
-                        if (!Helper.getText(binding.searchInput).isEmpty()) {
-                            if (logRaw.toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase())) {
-                                adapter.updateList(map);
-                            }
-                        } else {
-                            adapter.updateList(map);
-                        }
+
+                // Check if current log matches active filters
+                boolean hasSearchFilter = !Helper.getText(binding.searchInput).isEmpty();
+                boolean hasPkgFilter = !pkgFilterList.isEmpty();
+
+                boolean matchesSearch = !hasSearchFilter || logRaw.toLowerCase().contains(Helper.getText(binding.searchInput).toLowerCase());
+                boolean matchesPkg = !hasPkgFilter || (map.containsKey("pkgName") && pkgFilterList.contains(safeGet(map, "pkgName")));
+
+                if (matchesSearch && matchesPkg) {
+                    displayList.add(map);
+                    if (binding.logsRecyclerView.getAdapter() != null) {
+                        Adapter adapter = (Adapter) binding.logsRecyclerView.getAdapter();
+                        adapter.notifyItemInsertedSafely();
                     }
                 }
             }
@@ -262,27 +276,19 @@ public class LogReaderActivity extends BaseAppCompatActivity {
 
         public Adapter(ArrayList<HashMap<String, Object>> data) {
             this.data = data;
-            binding.noContentLayout.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+            checkEmptyState();
         }
 
-        public void updateList(HashMap<String, Object> _map) {
-            data.add(_map);
-            // CRITICAL BUG FIX: Corrected index from data.size() + 1 to data.size() - 1
-            binding.logsRecyclerView.getAdapter().notifyItemInserted(data.size() - 1);
+        public void notifyItemInsertedSafely() {
+            notifyItemInserted(data.size() - 1);
+            checkEmptyState();
+        }
 
-            if (autoScroll) {
-                binding.logsRecyclerView.getLayoutManager().scrollToPosition(data.size() - 1);
-                binding.appBarLayout.setExpanded(false);
+        public void checkEmptyState() {
+            binding.noContentLayout.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+            if (autoScroll && !data.isEmpty()) {
+                binding.logsRecyclerView.scrollToPosition(data.size() - 1);
             }
-
-            binding.noContentLayout.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
-        }
-
-        public void deleteAll() {
-            int size = data.size();
-            data.clear();
-            notifyItemRangeRemoved(0, size);
-            binding.noContentLayout.setVisibility(View.VISIBLE);
         }
 
         @Override

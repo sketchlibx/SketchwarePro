@@ -7,8 +7,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Environment;
 import android.util.Pair;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -120,7 +122,7 @@ public class AppSettings extends BaseAppCompatActivity {
                 try {
                     GoogleSignInAccount account = task.getResult(ApiException.class);
                     SketchwareUtil.toast("Signed in as " + account.getEmail());
-                    openCloudBackupDialog();
+                    processCloudBackupEntry();
                 } catch (ApiException e) {
                     showErrorDialog("Sign-In Error", "Google Sign-In failed with code: " + e.getStatusCode() + "\n" + e.getMessage());
                 }
@@ -147,7 +149,7 @@ public class AppSettings extends BaseAppCompatActivity {
         LibraryCategoryView cloudCategory = new LibraryCategoryView(this);
         cloudCategory.setTitle("Cloud & Sync");
         preferences.add(cloudCategory);
-        cloudCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_sync, "Cloud Backup", "Backup and restore projects securely to Google Drive", v -> openCloudBackupDialog()), false);
+        cloudCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_sync, "Cloud Backup", "Backup and restore projects securely to Google Drive", v -> checkDisclaimerAndOpenCloud()), false);
 
         LibraryCategoryView generalCategory = new LibraryCategoryView(this);
         generalCategory.setTitle("General");
@@ -160,6 +162,136 @@ public class AppSettings extends BaseAppCompatActivity {
         generalCategory.addLibraryItem(createPreference(R.drawable.ic_mtrl_settings, Helper.getResString(R.string.main_drawer_title_system_settings), "Auto-save and vibrations", new ActivityLauncher(new Intent(getApplicationContext(), SystemSettingActivity.class))), false);
 
         preferences.forEach(content::addView);
+    }
+
+    private void checkDisclaimerAndOpenCloud() {
+        SharedPreferences prefs = getSharedPreferences("cloud_backup_prefs", MODE_PRIVATE);
+        boolean isAccepted = prefs.getBoolean("disclaimer_accepted", false);
+
+        if (!isAccepted) {
+            showCloudDisclaimerDialog(() -> {
+                prefs.edit().putBoolean("disclaimer_accepted", true).apply();
+                processCloudBackupEntry();
+            });
+        } else {
+            processCloudBackupEntry();
+        }
+    }
+
+    // 🔥 PRO FIX: M3 Custom Disclaimer Dialog with 10-Second Countdown
+    private void showCloudDisclaimerDialog(Runnable onAccepted) {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        container.setPadding(padding, padding, padding, 0);
+
+        TextView message = new TextView(this);
+        message.setText("Welcome to Cloud Backup System!\n\n" +
+                "This feature allows you to securely backup and sync your Sketchware Pro projects directly to your personal Google Drive.\n\n" +
+                "⚠️ IMPORTANT DISCLAIMER:\n" +
+                "• BYOK Structure: We do NOT host your backups on our servers. Your data is synced directly to your own Google Drive's hidden AppData folder.\n" +
+                "• No Data Collection: Sketchware Pro contributors do not collect, view, or have access to your personal files, Google account, or backups.\n" +
+                "• Liability: This tool is provided 'AS-IS'. The developers are not responsible for any data loss, corruption, or legal issues regarding the content you backup.\n\n" +
+                "Please read carefully before proceeding.");
+        message.setTextSize(15f);
+        message.setLineSpacing(0, 1.2f);
+        container.addView(message);
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle("Cloud Backup Policy")
+                .setIcon(R.drawable.ic_mtrl_sync)
+                .setView(container)
+                .setPositiveButton("Accept (10s)", null)
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .setCancelable(false)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positiveBtn = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            positiveBtn.setEnabled(false);
+
+            new CountDownTimer(10000, 1000) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    positiveBtn.setText("Accept (" + (millisUntilFinished / 1000) + "s)");
+                }
+
+                @Override
+                public void onFinish() {
+                    positiveBtn.setText("Accept & Continue");
+                    positiveBtn.setEnabled(true);
+                    positiveBtn.setOnClickListener(v -> {
+                        dialog.dismiss();
+                        onAccepted.run();
+                    });
+                }
+            }.start();
+        });
+
+        dialog.show();
+    }
+
+    // 🔥 PRO FIX: Helper to create Properly Padded Progress Dialogs
+    private AlertDialog createPaddedProgressDialog(String title) {
+        LinearLayout container = new LinearLayout(this);
+        container.setGravity(Gravity.CENTER);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        container.setPadding(padding, padding, padding, padding);
+
+        ProgressBar progressBar = new ProgressBar(this);
+        container.addView(progressBar);
+
+        return new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setView(container)
+                .setCancelable(false)
+                .create();
+    }
+
+    private void processCloudBackupEntry() {
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(new Scope(DriveScopes.DRIVE_APPDATA))
+                .build();
+        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+
+        if (account == null) {
+            new MaterialAlertDialogBuilder(this)
+                .setTitle("Cloud Sync")
+                .setMessage("Please sign in with your Google Account to link your personal Google Drive for cloud backups.")
+                .setPositiveButton("Sign In", (dialog, which) -> {
+                    googleSignInLauncher.launch(mGoogleSignInClient.getSignInIntent());
+                })
+                .setNegativeButton(R.string.common_word_cancel, null)
+                .show();
+        } else {
+            String[] options = {
+                    "Manual Backup (Select Projects)", 
+                    "Restore Projects from Cloud", 
+                    "Configure Auto-Backup", 
+                    "Disconnect Account (" + account.getEmail() + ")"
+            };
+            
+            new MaterialAlertDialogBuilder(this)
+                .setTitle("Cloud Backup Settings")
+                .setItems(options, (dialog, which) -> {
+                    switch (which) {
+                        case 0 -> triggerSelectiveCloudBackup(account);
+                        case 1 -> triggerSelectiveCloudRestore(account);
+                        case 2 -> configureAutoBackupProjects();
+                        case 3 -> {
+                            mGoogleSignInClient.revokeAccess().addOnCompleteListener(task -> {
+                                SketchwareUtil.toast("Google Drive access revoked & Signed out.");
+                                getSharedPreferences("cloud_backup_prefs", MODE_PRIVATE).edit().putInt("auto_backup_interval", 0).apply();
+                                WorkManager.getInstance(this).cancelUniqueWork("CloudAutoBackup_Recurring");
+                            });
+                        }
+                    }
+                })
+                .show();
+        }
     }
 
     private void showErrorDialog(String title, String errorMessage) {
@@ -178,46 +310,6 @@ public class AppSettings extends BaseAppCompatActivity {
             })
             .setNegativeButton("Close", null)
             .show();
-    }
-
-    private void openCloudBackupDialog() {
-        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-        
-        if (account == null) {
-            new MaterialAlertDialogBuilder(this)
-                .setTitle("Cloud Backup")
-                .setMessage("Sign in with Google to backup your projects to your personal Google Drive. Your backups are stored securely in a hidden folder.")
-                .setPositiveButton("Sign In", (dialog, which) -> {
-                    GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                            .requestEmail()
-                            .requestScopes(new Scope(DriveScopes.DRIVE_APPDATA))
-                            .build();
-                    mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
-                    googleSignInLauncher.launch(mGoogleSignInClient.getSignInIntent());
-                })
-                .setNegativeButton(R.string.common_word_cancel, null)
-                .show();
-        } else {
-            String[] options = {
-                    "Manual Backup (Select Projects)", 
-                    "Restore Projects from Cloud", 
-                    "Configure Auto-Backup", 
-                    "Sign Out (" + account.getEmail() + ")"
-            };
-            
-            new MaterialAlertDialogBuilder(this)
-                .setTitle("Cloud Backup Settings")
-                .setItems(options, (dialog, which) -> {
-                    switch (which) {
-                        case 0 -> triggerSelectiveCloudBackup(account);
-                        case 1 -> triggerSelectiveCloudRestore(account);
-                        case 2 -> configureAutoBackupProjects();
-                        case 3 -> GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
-                                .addOnCompleteListener(task -> SketchwareUtil.toast("Signed out successfully"));
-                    }
-                })
-                .show();
-        }
     }
 
     private void triggerSelectiveCloudBackup(GoogleSignInAccount account) {
@@ -273,11 +365,8 @@ public class AppSettings extends BaseAppCompatActivity {
     }
 
     private void processManualBackupSequence(GoogleSignInAccount account, ArrayList<HashMap<String, Object>> projectsToBackup) {
-        AlertDialog progress = new MaterialAlertDialogBuilder(this)
-                .setTitle("Uploading Backups...")
-                .setView(new ProgressBar(this))
-                .setCancelable(false)
-                .show();
+        AlertDialog progress = createPaddedProgressDialog("Uploading Backups...");
+        progress.show();
 
         CloudBackupManager cloudManager = new CloudBackupManager(this, account);
         
@@ -311,10 +400,8 @@ public class AppSettings extends BaseAppCompatActivity {
     }
 
     private void triggerSelectiveCloudRestore(GoogleSignInAccount account) {
-        AlertDialog loadingDialog = new MaterialAlertDialogBuilder(this)
-            .setTitle("Fetching cloud backups...")
-            .setView(new ProgressBar(this))
-            .setCancelable(false).show();
+        AlertDialog loadingDialog = createPaddedProgressDialog("Fetching cloud backups...");
+        loadingDialog.show();
 
         CloudBackupManager cloudManager = new CloudBackupManager(this, account);
         cloudManager.getCloudBackupsList(new CloudBackupManager.FileListCallback() {
@@ -375,10 +462,8 @@ public class AppSettings extends BaseAppCompatActivity {
     }
 
     private void processRestoreSequence(CloudBackupManager cloudManager, List<com.google.api.services.drive.model.File> filesToRestore) {
-        AlertDialog progress = new MaterialAlertDialogBuilder(this)
-                .setTitle("Downloading & Restoring...")
-                .setView(new ProgressBar(this))
-                .setCancelable(false).show();
+        AlertDialog progress = createPaddedProgressDialog("Downloading & Restoring...");
+        progress.show();
 
         String downloadPath = new java.io.File(Environment.getExternalStorageDirectory(), ".sketchware/.cloudbackup/temp_restore").getAbsolutePath();
 

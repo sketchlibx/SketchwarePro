@@ -18,6 +18,9 @@ import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
 import pro.sketchware.utility.FileUtil
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -36,13 +39,15 @@ class DependencyResolver(
     companion object {
         private val DEFAULT_REPOS = """
           |[
-          |    {"url": "https://repo.hortonworks.com/content/repositories/releases", "name": "HortanWorks"},
-          |    {"url": "https://maven.atlassian.com/content/repositories/atlassian-public", "name": "Atlassian"},
+          |    {"url": "https://jitpack.io", "name": "JitPack"},
+          |    {"url": "https://maven.google.com", "name": "Google Maven"},
           |    {"url": "https://jcenter.bintray.com", "name": "JCenter"},
+          |    {"url": "https://repo.maven.apache.org/maven2", "name": "Apache Maven Central"},
           |    {"url": "https://oss.sonatype.org/content/repositories/releases", "name": "Sonatype"},
           |    {"url": "https://repo.spring.io/plugins-release", "name": "Spring Plugins"},
           |    {"url": "https://repo.spring.io/libs-milestone", "name": "Spring Milestone"},
-          |    {"url": "https://repo.maven.apache.org/maven2", "name": "Apache Maven"}
+          |    {"url": "https://maven.atlassian.com/content/repositories/atlassian-public", "name": "Atlassian"},
+          |    {"url": "https://repo.hortonworks.com/content/repositories/releases", "name": "HortanWorks"}
           |]
         """.trimMargin()
     }
@@ -62,6 +67,13 @@ class DependencyResolver(
             Files.createDirectories(repositoriesJson.parent)
             repositoriesJson.writeText(DEFAULT_REPOS)
         }
+        
+        val reposString = repositoriesJson.readText()
+        if (!reposString.contains("jitpack.io") || !reposString.contains("maven.google.com")) {
+            repositoriesJson.writeText(DEFAULT_REPOS) 
+        }
+
+        repositories.clear() 
         Gson().fromJson(repositoriesJson.readText(), Helper.TYPE_MAP_LIST).forEach {
             val url: String? = it["url"] as String?
             if (url != null) {
@@ -102,10 +114,21 @@ class DependencyResolver(
         open fun onTaskCompleted(artifacts: List<String>) {}
         open fun dexingFailed(artifact: Artifact, e: Exception) {}
         open fun invalidPackaging(artifact: Artifact) {}
+        
+        open fun onDirectDownloadStart(url: String) {}
+        open fun onDirectDownloadEnd(fileName: String) {}
+        open fun onDirectDownloadError(url: String, error: Throwable) {}
     }
 
     fun resolveDependency(callback: DependencyResolverCallback) = runBlocking {
         eventReciever = callback
+
+        val isDirectUrl = groupId.startsWith("http://") || groupId.startsWith("https://")
+        if (isDirectUrl) {
+            handleDirectUrlDownload(groupId, callback)
+            return@runBlocking
+        }
+
         val dependency = getArtifact(groupId, artifactId, version) ?: return@runBlocking
 
         if (dependency.extension != "jar" && dependency.extension != "aar") {
@@ -215,24 +238,24 @@ class DependencyResolver(
                 path.parent.resolve("config").writeText(packageName)
             }
 
-            val jar = if (dep.extension == "jar") path else Paths.get(
+            val targetJar = if (dep.extension == "jar") path else Paths.get(
                 downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar"
             )
-            if (Files.notExists(jar)) {
+            if (Files.notExists(targetJar)) {
                 callback.onDependenciesNotFound(dep)
                 return@forEach
             }
 
-            dependencyClasspath.add(jar)
+            dependencyClasspath.add(targetJar)
         }
 
         dependency.getAllDependencies().forEach { dep ->
-            val jar = Paths.get(downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar")
+            val targetJar = Paths.get(downloadPath, "${dep.artifactId}-v${dep.version}", "classes.jar")
 
             callback.dexing(dep)
             try {
                 compileJar(
-                    jar, dependencyClasspath.toMutableList().apply { remove(jar) }, libraryJars
+                    targetJar, dependencyClasspath.toMutableList().apply { remove(targetJar) }, libraryJars
                 )
                 callback.onResolutionComplete(dep)
             } catch (e: Exception) {
@@ -241,8 +264,94 @@ class DependencyResolver(
             }
         }
 
-        callback.onTaskCompleted(
-            dependency.getAllDependencies().map { "${it.artifactId}-v${it.version}" })
+        val completedList = mutableListOf("${dependency.artifactId}-v${dependency.version}")
+        completedList.addAll(dependency.getAllDependencies().map { "${it.artifactId}-v${it.version}" })
+        callback.onTaskCompleted(completedList)
+    }
+
+    private fun handleDirectUrlDownload(urlStr: String, callback: DependencyResolverCallback) {
+        val fileName = urlStr.substringAfterLast("/")
+        var ext = "jar"
+        if (fileName.contains(".aar", true)) {
+            ext = "aar"
+        }
+        
+        val folderName = fileName.substringBeforeLast(".")
+        
+        val directDep = Artifact("direct", folderName).apply {
+            version = "1.0"
+            extension = ext
+        }
+        
+        callback.onDirectDownloadStart(urlStr)
+        callback.onDownloadStart(directDep)
+        
+        val outFolder = File(downloadPath, folderName)
+        outFolder.mkdirs()
+        val outFile = File(outFolder, "classes.$ext")
+
+        try {
+            val url = URL(urlStr)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            connection.connect()
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw Exception("Server returned HTTP ${connection.responseCode} ${connection.responseMessage}")
+            }
+
+            val input = connection.inputStream
+            val output = FileOutputStream(outFile)
+            
+            val buffer = ByteArray(4096)
+            var bytesRead = -1
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                output.write(buffer, 0, bytesRead)
+            }
+            output.close()
+            input.close()
+
+            callback.onDownloadEnd(directDep)
+            callback.onDirectDownloadEnd(fileName)
+
+            if (ext == "aar") {
+                callback.unzipping(directDep)
+                unzip(outFile.toPath())
+                outFile.delete()
+                val pkgName = findPackageName(outFolder.absolutePath, "direct.download")
+                File(outFolder, "config").writeText(pkgName)
+            }
+
+            val targetJar = File(outFolder, "classes.jar")
+            
+            val libraryJars = listOf(
+                BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.toPath().resolve("core-lambda-stubs.jar"), 
+                Paths.get(buildSettings.getValue(BuildSettings.SETTING_ANDROID_JAR_PATH, BuiltInLibraries.EXTRACTED_COMPILE_ASSETS_PATH.resolve("android.jar").absolutePath))
+            )
+            
+            val classpath = buildSettings.getValue(BuildSettings.SETTING_CLASSPATH, "")
+            val dependencyClasspath = mutableListOf<Path>()
+            classpath.split(":").forEach {
+                if (it.isNotEmpty()) dependencyClasspath.add(Paths.get(it))
+            }
+
+            callback.dexing(directDep)
+            try {
+                compileJar(targetJar.toPath(), dependencyClasspath, libraryJars)
+                callback.onResolutionComplete(directDep)
+            } catch (e: Exception) {
+                callback.dexingFailed(directDep, e)
+                return
+            }
+
+            callback.onTaskCompleted(listOf(folderName))
+
+        } catch (e: Exception) {
+            callback.onDirectDownloadError(urlStr, e)
+            callback.onDownloadError(directDep, e)
+        }
     }
 
     private fun findPackageName(path: String, defaultValue: String): String {
@@ -254,7 +363,6 @@ class DependencyResolver(
         if (m.find()) {
             return m.group(1)!!
         }
-
         return defaultValue
     }
 

@@ -107,7 +107,7 @@ public class oq {
             case "onDestroy" -> Helper.getResString(R.string.event_ondestroy);
             case "onResume" -> Helper.getResString(R.string.event_onresume);
             case "onPause" -> Helper.getResString(R.string.event_onpause);
-            case "onRequestPermissionsResult" -> "onRequestPermissionsResult";
+            case "onRequestPermissionsResult" -> Helper.getResString(R.string.event_onrequestpermission);
             case "onPageStarted" -> Helper.getResString(R.string.event_onpagestarted);
             case "onPageFinished" -> Helper.getResString(R.string.event_onpagefinished);
             case "moreBlock" -> Helper.getResString(R.string.event_definefunc);

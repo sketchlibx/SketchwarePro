@@ -161,7 +161,6 @@ public class BackupRestoreManager {
         new RestoreAsyncTask(new WeakReference<>(act), file, restoreLocalLibs, projectsFragment).execute("");
     }
 
-    /*** Import AS Project (ZIP) using FilePicker ***/
     public void importASProject() {
         FilePickerOptions options = new FilePickerOptions();
         options.setMultipleSelection(false);

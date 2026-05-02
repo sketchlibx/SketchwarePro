@@ -1152,6 +1152,12 @@ public class DesignActivity extends BaseAppCompatActivity implements View.OnClic
                 proguardHandler.start(this, builder);
                 if (canceled) return;
                 onProgress(builder.getDxRunningText(), 17);
+                
+                boolean isMultiDexEnabled = new ProjectSettings(sc_id).getValue("multidex", "false").equals("true");
+                if (isMultiDexEnabled) {
+                    builder.setMultiDexEnabled(true);
+                }
+                
                 builder.createDexFilesFromClasses();
                 if (canceled) return;
                 onProgress("Merging DEX files...", 18);

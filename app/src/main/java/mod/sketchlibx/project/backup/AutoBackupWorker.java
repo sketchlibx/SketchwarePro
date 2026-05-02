@@ -50,19 +50,19 @@ public class AutoBackupWorker extends Worker {
         NetworkInfo netInfo = cm.getActiveNetworkInfo();
         if (netInfo == null || !netInfo.isConnected() || !netInfo.isAvailable()) {
             Log.e(TAG, "No active internet connection. Retrying later.");
-            return Result.retry(); // Agar net nahi hai toh baad mein try karega
+            return Result.retry(); 
         }
 
         SharedPreferences prefs = context.getSharedPreferences("cloud_backup_prefs", Context.MODE_PRIVATE);
         long lastBackupTime = prefs.getLong("last_backup_time", 0);
-        int intervalType = prefs.getInt("auto_backup_interval", 2); // Default 2 is Weekly
+        int intervalType = prefs.getInt("auto_backup_interval", 2); 
         
-        if (intervalType == 0) return Result.success(); // 0 means Off
+        if (intervalType == 0) return Result.success(); 
         
         long intervalMs = switch (intervalType) {
-            case 1 -> 24L * 60 * 60 * 1000; // Daily
-            case 2 -> 7L * 24 * 60 * 60 * 1000; // Weekly
-            case 3 -> 30L * 24 * 60 * 60 * 1000; // Monthly
+            case 1 -> 24L * 60 * 60 * 1000; 
+            case 2 -> 7L * 24 * 60 * 60 * 1000; 
+            case 3 -> 30L * 24 * 60 * 60 * 1000; 
             default -> 7L * 24 * 60 * 60 * 1000;
         };
         
@@ -71,11 +71,11 @@ public class AutoBackupWorker extends Worker {
             return Result.success(); 
         }
         
-        // Update immediately so it doesn't spam retries if something crashes in the middle
         prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
         
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(context);
         if (account == null) {
+            Log.e(TAG, "Not signed in to Google.");
             return Result.failure();
         }
 
@@ -115,29 +115,39 @@ public class AutoBackupWorker extends Worker {
             backupFactory.backup(context, projectName);
             File swbFile = backupFactory.getOutFile();
 
-            if (swbFile != null && swbFile.exists()) {
+            if (swbFile != null && swbFile.exists() && swbFile.length() > 0) {
                 try {
                     uploadSync(cloudManager, swbFile, projectName);
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to upload: " + projectName, e);
                     allSuccess = false;
+                } finally {
+                    if (swbFile.exists()) {
+                        boolean deleted = swbFile.delete();
+                        Log.d(TAG, "Temp backup deleted to save storage: " + deleted);
+                    }
                 }
             } else {
+                Log.e(TAG, "Backup file generation failed for: " + projectName);
                 allSuccess = false;
             }
         }
 
-        // Clean up hidden cloud backup folder entirely after syncing everything
         FileUtil.deleteFile(CloudBackupFactory.getCloudBackupDir());
 
-        updateNotification("Backup Complete!", total, total);
-        return allSuccess ? Result.success() : Result.retry();
+        if (allSuccess) {
+            updateNotification("Cloud Backup Complete!", total, total);
+            return Result.success();
+        } else {
+            updateNotification("Cloud Backup finished with errors.", total, total);
+            return Result.retry();
+        }
     }
 
     private void updateNotification(String text, int current, int total) {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext(), CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_popup_sync)
-                .setContentTitle("Sketchware Cloud Backup")
+                .setContentTitle("Sketchware Cloud Sync")
                 .setContentText(text)
                 .setProgress(total, current, false)
                 .setOngoing(current < total)
@@ -164,20 +174,35 @@ public class AutoBackupWorker extends Worker {
     private void uploadSync(CloudBackupManager cloudManager, File swbFile, String projectName) throws Exception {
         final Object lock = new Object();
         final Exception[] uploadError = {null};
+        final boolean[] isDone = {false};
 
         cloudManager.uploadBackupToCloud(swbFile, projectName, new CloudBackupManager.BackupCallback() {
             @Override
             public void onSuccess(String message) {
-                synchronized (lock) { lock.notify(); }
+                synchronized (lock) { 
+                    isDone[0] = true;
+                    lock.notify(); 
+                }
             }
             @Override
             public void onError(String error) {
-                uploadError[0] = new Exception(error);
-                synchronized (lock) { lock.notify(); }
+                synchronized (lock) { 
+                    uploadError[0] = new Exception(error);
+                    isDone[0] = true;
+                    lock.notify(); 
+                }
             }
         });
 
-        synchronized (lock) { lock.wait(); }
+        synchronized (lock) {
+            if (!isDone[0]) {
+                lock.wait(120000); // Strict 2-minute timeout to prevent infinite deadlocks
+            }
+        }
+        
+        if (!isDone[0]) {
+            throw new Exception("Upload timed out after 2 minutes.");
+        }
         if (uploadError[0] != null) throw uploadError[0];
     }
 }

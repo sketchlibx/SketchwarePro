@@ -147,6 +147,42 @@ public class yq {
         return new File(projectMyscPath);
     }
 
+    private String processAndroidX(String code) {
+        boolean isForceAndroidXEnabled = projectSettings.getValue(ProjectSettings.SETTING_FORCE_ANDROIDX, "false").equals("true");
+        if (!isForceAndroidXEnabled || code == null) return code;
+        
+        // Android Support -> AndroidX Migrations
+        code = code.replace("android.support.v7.app.AppCompatActivity", "androidx.appcompat.app.AppCompatActivity");
+        code = code.replace("android.support.v4.app.Fragment", "androidx.fragment.app.Fragment");
+        code = code.replace("android.support.v4.app.FragmentManager", "androidx.fragment.app.FragmentManager");
+        code = code.replace("android.support.v4.content.ContextCompat", "androidx.core.content.ContextCompat");
+        code = code.replace("android.support.v4.app.ActivityCompat", "androidx.core.app.ActivityCompat");
+        code = code.replace("android.support.v7.app.AlertDialog", "androidx.appcompat.app.AlertDialog");
+        code = code.replace("android.support.v7.widget.Toolbar", "androidx.appcompat.widget.Toolbar");
+        code = code.replace("android.support.v7.widget.RecyclerView", "androidx.recyclerview.widget.RecyclerView");
+        code = code.replace("android.support.v7.widget.CardView", "androidx.cardview.widget.CardView");
+        code = code.replace("android.support.v4.view.ViewPager", "androidx.viewpager.widget.ViewPager");
+        code = code.replace("android.support.v4.view.PagerAdapter", "androidx.viewpager.widget.PagerAdapter");
+        code = code.replace("android.support.v4.widget.DrawerLayout", "androidx.drawerlayout.widget.DrawerLayout");
+        code = code.replace("android.support.v4.widget.SwipeRefreshLayout", "androidx.swiperefreshlayout.widget.SwipeRefreshLayout");
+        code = code.replace("android.support.design.widget.FloatingActionButton", "com.google.android.material.floatingactionbutton.FloatingActionButton");
+        code = code.replace("android.support.design.widget.AppBarLayout", "com.google.android.material.appbar.AppBarLayout");
+        code = code.replace("android.support.design.widget.CoordinatorLayout", "androidx.coordinatorlayout.widget.CoordinatorLayout");
+        code = code.replace("android.support.design.widget.Snackbar", "com.google.android.material.snackbar.Snackbar");
+        code = code.replace("android.support.design.widget.BottomSheetDialog", "com.google.android.material.bottomsheet.BottomSheetDialog");
+        code = code.replace("android.support.design.widget.NavigationView", "com.google.android.material.navigation.NavigationView");
+        code = code.replace("android.support.design.widget.TabLayout", "com.google.android.material.tabs.TabLayout");
+        code = code.replace("android.support.design.widget.TextInputLayout", "com.google.android.material.textfield.TextInputLayout");
+        code = code.replace("android.support.design.widget.TextInputEditText", "com.google.android.material.textfield.TextInputEditText");
+        code = code.replace("android.support.v4.content.FileProvider", "androidx.core.content.FileProvider");
+        code = code.replace("android.support.annotation.", "androidx.annotation.");
+        code = code.replace("android.support.v4.graphics.drawable.RoundedBitmapDrawable", "androidx.core.graphics.drawable.RoundedBitmapDrawable");
+        code = code.replace("android.support.v4.graphics.drawable.RoundedBitmapDrawableFactory", "androidx.core.graphics.drawable.RoundedBitmapDrawableFactory");
+        code = code.replace("android.support.v4.util.Pair", "androidx.core.util.Pair");
+        
+        return code;
+    }
+
     public void a() {
         File file = new File(resDirectoryPath + File.separator + "values-v21");
         if (file.exists()) {
@@ -236,7 +272,7 @@ public class yq {
                     "debug" + File.separator + "DebugActivity.java"
             );
             debugActivityContent = PACKAGE_PLACEHOLDER_PATTERN.matcher(debugActivityContent).replaceAll(packageName);
-            fileUtil.b(javaFilesPath + File.separator + packageNameAsFolders + File.separator + "DebugActivity.java", debugActivityContent);
+            fileUtil.b(javaFilesPath + File.separator + packageNameAsFolders + File.separator + "DebugActivity.java", processAndroidX(debugActivityContent));
         }
 
         String customApplicationClassName = new ProjectSettings(sc_id).getValue(
@@ -299,7 +335,7 @@ public class yq {
 
             fileUtil.b(javaFilesPath + File.separator
                     + customClassPackageAsFolders + File.separator
-                    + customClassSimpleName + ".java", sketchApplicationFileContent);
+                    + customClassSimpleName + ".java", processAndroidX(sketchApplicationFileContent));
         }
 
         if (logcatEnabled) {
@@ -315,12 +351,13 @@ public class yq {
                 sketchLoggerFileContent = sketchLoggerFileContent.replace("<?class_name?>", customClassSimpleName);
 
                 fileUtil.b(javaFilesPath + File.separator + packageNameAsFolders + File.separator + "SketchLogger.java",
-                        sketchLoggerFileContent);
+                        processAndroidX(sketchLoggerFileContent));
             }
         }
     }
 
     public void a(String fileName, String fileContent) {
+        fileContent = processAndroidX(fileContent);
         if (fileName.endsWith("java")) {
             fileUtil.b(javaFilesPath + File.separator + packageNameAsFolders + File.separator + fileName, fileContent);
         } else if (fileName.equals("AndroidManifest.xml")) {
@@ -538,7 +575,7 @@ public class yq {
             externalPathTag.addAttribute("", "path", ".");
             pathsTag.addChildNode(externalPathTag);
             srcCodeBeans.add(new SrcCodeBean("provider_paths.xml",
-                    CommandBlock.applyCommands("xml/provider_paths.xml", pathsTag.toCode())));
+                    processAndroidX(CommandBlock.applyCommands("xml/provider_paths.xml", pathsTag.toCode()))));
         }
 
         for (SrcCodeBean bean : srcCodeBeans) {
@@ -574,7 +611,7 @@ public class yq {
             }
             String filePath = "values/secrets.xml";
             fileUtil.b(resDirectoryPath + File.separator + filePath,
-                    CommandBlock.applyCommands(filePath, mx.toCode()));
+                    processAndroidX(CommandBlock.applyCommands(filePath, mx.toCode())));
         }
         generateGradleFiles();
     }
@@ -606,12 +643,12 @@ public class yq {
             File customJavaFile = new File(customJavaDir, activity.getJavaName());
             
             if (isCustomJavaEnabled && customJavaFile.exists()) {
-                srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), FileUtil.readFile(customJavaFile.getAbsolutePath())));
+                srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), processAndroidX(FileUtil.readFile(customJavaFile.getAbsolutePath()))));
             } else if (!javaFiles.contains(new File(javaDir + activity.getJavaName()))) {
                 srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(),
-                        new Jx(N, activity, projectDataManager).generateCode(isAndroidStudioExport, sc_id)));
+                        processAndroidX(new Jx(N, activity, projectDataManager).generateCode(isAndroidStudioExport, sc_id))));
             } else {
-                srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), FileUtil.readFile(javaDir + activity.getJavaName())));
+                srcCodeBeans.add(new SrcCodeBean(activity.getJavaName(), processAndroidX(FileUtil.readFile(javaDir + activity.getJavaName()))));
             }
         }
 
@@ -630,15 +667,16 @@ public class yq {
             ox.a(eC.a(projectDataManager.d(xmlName)), projectDataManager.h(xmlName));
             var ogFile = new File(layoutDir + xmlName);
             if (!layoutFiles.contains(ogFile)) {
-                srcCodeBeans.add(new SrcCodeBean(xmlName, CommandBlock.applyCommands(xmlName, ox.b())));
+                String processedLayoutCode = processAndroidX(CommandBlock.applyCommands(xmlName, ox.b()));
+                srcCodeBeans.add(new SrcCodeBean(xmlName, processedLayoutCode));
 
                 if (isViewBindingEnable()) {
                     var privFile = new File(context.getCacheDir(), xmlName);
-                    FileUtil.writeFile(privFile.getAbsolutePath(), CommandBlock.applyCommands(xmlName, ox.b()));
+                    FileUtil.writeFile(privFile.getAbsolutePath(), processedLayoutCode);
                     var code = viewBindingBuilder.generateBindingForLayout(privFile);
                     srcCodeBeans.add(new SrcCodeBean(
                             ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
-                            CommandBlock.applyCommands(xmlName, code)
+                            processAndroidX(CommandBlock.applyCommands(xmlName, code))
                     ));
                 }
             }
@@ -651,15 +689,16 @@ public class yq {
             ox.a(eC.a(projectDataManager.d(xmlName)));
             var ogFile = new File(layoutDir + xmlName);
             if (!layoutFiles.contains(ogFile)) {
-                srcCodeBeans.add(new SrcCodeBean(xmlName, CommandBlock.applyCommands(xmlName, ox.b())));
+                String processedLayoutCode = processAndroidX(CommandBlock.applyCommands(xmlName, ox.b()));
+                srcCodeBeans.add(new SrcCodeBean(xmlName, processedLayoutCode));
 
                 if (isViewBindingEnable()) {
                     var privFile = new File(context.getCacheDir(), xmlName);
-                    FileUtil.writeFile(privFile.getAbsolutePath(), CommandBlock.applyCommands(xmlName, ox.b()));
+                    FileUtil.writeFile(privFile.getAbsolutePath(), processedLayoutCode);
                     var code = viewBindingBuilder.generateBindingForLayout(privFile);
                     srcCodeBeans.add(new SrcCodeBean(
                             ViewBindingBuilder.generateFileNameForLayout(xmlName.replace(".xml", "")) + ".java",
-                            CommandBlock.applyCommands(xmlName, code)
+                            processAndroidX(CommandBlock.applyCommands(xmlName, code))
                     ));
                 }
             }
@@ -670,42 +709,42 @@ public class yq {
 
         if (!javaFiles.contains(new File(javaDir + "SketchwareUtil.java"))) {
             srcCodeBeans.add(new SrcCodeBean("SketchwareUtil.java",
-                    Lx.i(packageName, material3LibraryManager.isMaterial3Enabled())));
+                    processAndroidX(Lx.i(packageName, material3LibraryManager.isMaterial3Enabled()))));
         }
 
         if (!javaFiles.contains(new File(javaDir + "FileUtil.java"))) {
-            srcCodeBeans.add(new SrcCodeBean("FileUtil.java", Lx.e(packageName)));
+            srcCodeBeans.add(new SrcCodeBean("FileUtil.java", processAndroidX(Lx.e(packageName))));
         }
 
         if (!javaFiles.contains(new File(javaDir + "RequestNetwork.java")) && N.isHttp3Used) {
-            srcCodeBeans.add(new SrcCodeBean("RequestNetwork.java", Lx.j(Lx.h(packageName), false)));
+            srcCodeBeans.add(new SrcCodeBean("RequestNetwork.java", processAndroidX(Lx.j(Lx.h(packageName), false))));
         }
 
         if (!FileUtil.isExistFile(javaDir + "RequestNetworkController.java") && N.isHttp3Used) {
-            srcCodeBeans.add(new SrcCodeBean("RequestNetworkController.java", Lx.j(Lx.g(packageName), false)));
+            srcCodeBeans.add(new SrcCodeBean("RequestNetworkController.java", processAndroidX(Lx.j(Lx.g(packageName), false))));
         }
 
         if (!javaFiles.contains(new File(javaDir + "BluetoothConnect.java")) && N.hasPermission(jq.PERMISSION_BLUETOOTH)) {
-            srcCodeBeans.add(new SrcCodeBean("BluetoothConnect.java", Lx.j(Lx.b(packageName), false)));
+            srcCodeBeans.add(new SrcCodeBean("BluetoothConnect.java", processAndroidX(Lx.j(Lx.b(packageName), false))));
         }
 
         if (!javaFiles.contains(new File(javaDir + "BluetoothController.java")) && N.hasPermission(jq.PERMISSION_BLUETOOTH)) {
-            srcCodeBeans.add(new SrcCodeBean("BluetoothController.java", Lx.j(Lx.c(packageName), false)));
+            srcCodeBeans.add(new SrcCodeBean("BluetoothController.java", processAndroidX(Lx.j(Lx.c(packageName), false))));
         }
 
         if (N.isMapUsed && !javaFiles.contains(new File(javaDir + "GoogleMapController.java"))) {
-            srcCodeBeans.add(new SrcCodeBean("GoogleMapController.java", Lx.j(Lx.f(packageName), false)));
+            srcCodeBeans.add(new SrcCodeBean("GoogleMapController.java", processAndroidX(Lx.j(Lx.f(packageName), false))));
         }
 
         if (isCustomManifestEnabled && FileUtil.isExistFile(customManifestPath)) {
-            srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", FileUtil.readFile(customManifestPath)));
+            srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", processAndroidX(FileUtil.readFile(customManifestPath))));
         } else {
-            srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", CommandBlock.applyCommands("AndroidManifest.xml", ix.a())));
+            srcCodeBeans.add(new SrcCodeBean("AndroidManifest.xml", processAndroidX(CommandBlock.applyCommands("AndroidManifest.xml", ix.a()))));
         }
         
-        srcCodeBeans.add(new SrcCodeBean("styles.xml", getXMLStyle()));
-        srcCodeBeans.add(new SrcCodeBean("colors.xml", getXMLColor()));
-        srcCodeBeans.add(new SrcCodeBean("strings.xml", getXMLString()));
+        srcCodeBeans.add(new SrcCodeBean("styles.xml", processAndroidX(getXMLStyle())));
+        srcCodeBeans.add(new SrcCodeBean("colors.xml", processAndroidX(getXMLColor())));
+        srcCodeBeans.add(new SrcCodeBean("strings.xml", processAndroidX(getXMLString())));
         CommandBlock.x();
         return srcCodeBeans;
     }
@@ -739,23 +778,23 @@ public class yq {
         }
 
         switch (filename) {
-            case "strings.xml" -> { return getXMLString(); }
-            case "colors.xml" -> { return getXMLColor(); }
-            case "styles.xml" -> { return getXMLStyle(); }
+            case "strings.xml" -> { return processAndroidX(getXMLString()); }
+            case "colors.xml" -> { return processAndroidX(getXMLColor()); }
+            case "styles.xml" -> { return processAndroidX(getXMLStyle()); }
         }
 
 
         if (isManifestFile) {
             String customManifestPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_manifest.xml";
             if (isCustomManifestEnabled && FileUtil.isExistFile(customManifestPath)) {
-                return FileUtil.readFile(customManifestPath);
+                return processAndroidX(FileUtil.readFile(customManifestPath));
             }
             
             ProjectBuilder builder = new ProjectBuilder(SketchApplication.getContext(), this);
             builder.buildBuiltInLibraryInformation();
             Ix ix = new Ix(N, projectFileManager.b(), builder.getBuiltInLibraryManager());
             ix.setYq(this);
-            return CommandBlock.applyCommands("AndroidManifest.xml", ix.a());
+            return processAndroidX(CommandBlock.applyCommands("AndroidManifest.xml", ix.a()));
         }
 
         for (ProjectFileBean file : files) {
@@ -763,13 +802,13 @@ public class yq {
                 if (isJavaFile) {
                     String customJavaPath = FileUtil.getExternalStorageDir() + "/.sketchware/data/" + sc_id + "/custom_java/" + filename;
                     if (isCustomJavaEnabled && FileUtil.isExistFile(customJavaPath)) {
-                        return FileUtil.readFile(customJavaPath);
+                        return processAndroidX(FileUtil.readFile(customJavaPath));
                     }
-                    return new Jx(N, file, projectDataManager).generateCode(isAndroidStudioExport, sc_id);
+                    return processAndroidX(new Jx(N, file, projectDataManager).generateCode(isAndroidStudioExport, sc_id));
                 } else if (isXmlFile) {
                     Ox xmlGenerator = new Ox(N, file);
                     xmlGenerator.a(eC.a(projectDataManager.d(filename)), projectDataManager.h(filename));
-                    return CommandBlock.applyCommands(filename, xmlGenerator.b());
+                    return processAndroidX(CommandBlock.applyCommands(filename, xmlGenerator.b()));
                 }
             }
         }
